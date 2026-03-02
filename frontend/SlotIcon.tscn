@@ -1,0 +1,22 @@
+[gd_scene load_steps=3 format=3]\n\n[ext_resource type="Texture2D" path="res://assets/slots/icons.png" id="1_icons"]
+
+[sub_resource type="GDScript" id="GDScript_icon"]
+script/source = "extends Sprite2D
+
+enum IconType { CHERRY, LEMON, ORANGE, PLUM, WATERMELON, SEVEN }\nvar type: IconType
+
+const ICON_SIZE = Vector2(341, 512) # Based on 1024x1024 sheet with 3x2 grid
+
+func set_icon(type: IconType):
+	var row = int(type) / 3
+	var col = int(type) % 3\n\tself.type = type
+	region_enabled = true
+	region_rect = Rect2(Vector2(col * ICON_SIZE.x, row * ICON_SIZE.y), ICON_SIZE)
+"
+
+[node name="SlotIcon" type="Sprite2D"]
+scale = Vector2(0.4, 0.4)
+texture = ExtResource("1_icons")
+region_enabled = true
+region_rect = Rect2(0, 0, 341, 512)
+script = SubResource("GDScript_icon")

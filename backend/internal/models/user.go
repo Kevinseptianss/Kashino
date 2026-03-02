@@ -15,6 +15,7 @@ type User struct {
 	Password       string             `bson:"password" json:"password"`
 	Balance        float64            `bson:"balance" json:"balance"`
 	BalanceHistory []Transaction      `bson:"balance_history" json:"balance_history"`
+	Tier           string             `bson:"tier" json:"tier"`
 }
 
 type Account struct {

@@ -1,0 +1,147 @@
+[gd_scene load_steps=4 format=3]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bg"]
+bg_color = Color(0.0392157, 0.0392157, 0.0588235, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_card"]
+bg_color = Color(0.0784314, 0.0784314, 0.117647, 1)
+corner_radius_top_left = 20
+corner_radius_top_right = 20
+corner_radius_bottom_right = 20
+corner_radius_bottom_left = 20
+
+[sub_resource type="GDScript" id="GDScript_profile"]
+script/source = "extends Control
+
+@onready var history_list = $VBox/Scroll/HistoryList
+@onready var username_label = $VBox/Header/Username
+@onready var balance_label = $VBox/BalanceCard/VBox/Balance
+
+func _ready():
+	if has_node(\"/root/AuthService\"):
+		var auth = get_node(\"/root/AuthService\")
+		username_label.text = auth.current_user[\"username\"]
+		$VBox/BalanceCard/VBox/Label.text = auth.current_user[\"tier\"]
+		_update_balance_display(auth.current_balance)
+		
+		auth.balance_updated.connect(_update_balance_display)
+		auth.history_received.connect(_display_history)
+		
+		# Request history
+		auth.get_history()
+
+func _update_balance_display(amount):
+	var formatted = \"\"
+	var s = str(int(amount))
+	var count = 0
+	for i in range(s.length() - 1, -1, -1):
+		formatted = s[i] + formatted
+		count += 1
+		if count == 3 and i > 0:
+			formatted = \" \" + formatted
+			count = 0
+	balance_label.text = \"C \" + formatted
+
+func _display_history(history):
+	# Clear old items
+	for child in history_list.get_children():
+		child.queue_free()
+	
+	for item in history:
+		var label = Label.new()
+		var amount_str = str(item[\"amount\"])
+		if item[\"amount\"] > 0: amount_str = \"+\" + amount_str
+		label.text = \"%s: %s\" % [item[\"source\"], amount_str]
+		if item[\"amount\"] < 0:
+			label.add_theme_color_override(\"font_color\", Color.RED)
+		else:
+			label.add_theme_color_override(\"font_color\", Color.GREEN)
+		history_list.add_child(label)
+
+func _on_back_pressed():
+	queue_free()
+"
+
+[node name="ProfilePage" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = SubResource("GDScript_profile")
+
+[node name="BG" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_bg")
+
+[node name="VBox" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 30.0
+offset_top = 50.0
+offset_right = -30.0
+offset_bottom = -30.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 30
+
+[node name="Header" type="HBoxContainer" parent="VBox"]
+layout_mode = 2
+
+[node name="BackBtn" type="Button" parent="VBox/Header"]
+custom_minimum_size = Vector2(80, 40)
+layout_mode = 2
+text = "Back"
+
+[node name="Username" type="Label" parent="VBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Username"
+horizontal_alignment = 2
+theme_override_font_sizes/font_size = 24
+
+[node name="BalanceCard" type="PanelContainer" parent="VBox"]
+custom_minimum_size = Vector2(0, 120)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_card")
+
+[node name="VBox" type="VBoxContainer" parent="VBox/BalanceCard"]
+layout_mode = 2
+alignment = 1
+
+[node name="Label" type="Label" parent="VBox/BalanceCard/VBox"]
+layout_mode = 2
+text = "CURRENT BALANCE"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 14
+
+[node name="Balance" type="Label" parent="VBox/BalanceCard/VBox"]
+layout_mode = 2
+text = "$1,000"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 32
+theme_override_colors/font_color = Color(1, 0.843137, 0, 1)
+
+[node name="HistoryLabel" type="Label" parent="VBox"]
+layout_mode = 2
+text = "Transaction History"
+theme_override_font_sizes/font_size = 18
+
+[node name="Scroll" type="ScrollContainer" parent="VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="HistoryList" type="VBoxContainer" parent="VBox/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[connection signal="pressed" from="VBox/Header/BackBtn" to="." method="_on_back_pressed"]

@@ -2,18 +2,21 @@ package websocket
 
 import (
 	"encoding/json"
+	"kashino-backend/internal/repository"
 	"log"
 )
 
 type Hub struct {
+	UserRepo   *repository.UserRepository
 	clients    map[*Client]bool
 	broadcast  chan []byte
 	register   chan *Client
 	unregister chan *Client
 }
 
-func NewHub() *Hub {
+func NewHub(repo *repository.UserRepository) *Hub {
 	return &Hub{
+		UserRepo:   repo,
 		broadcast:  make(chan []byte),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),

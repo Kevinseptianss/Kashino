@@ -5,14 +5,50 @@ signal login_failed(error_message)
 signal signup_success(user_data)
 signal signup_failed(error_message)
 signal balance_updated(new_balance)
+signal history_received(history)
+signal connection_status_changed(online)
 
 var base_url = "http://localhost:9090"
 var current_user = null
 var current_balance = 0.0
-var auth_token = ""
+var socket = WebSocketPeer.new()
+var url = "ws://localhost:9090/ws"
+var ws_connected = false
 
 func _ready():
 	process_mode = PROCESS_MODE_ALWAYS
+
+func _connect_to_ws():
+	var ws_url = url + "?user_id=" + str(current_user["id"])
+	print("Connecting to backend at ", ws_url)
+	var err = socket.connect_to_url(ws_url)
+	if err != OK:
+		print("Could not connect to backend")
+		_set_online(false)
+
+func _process(_delta):
+	socket.poll()
+	var state = socket.get_ready_state()
+	
+	if state == WebSocketPeer.STATE_OPEN:
+		if not ws_connected:
+			_set_online(true)
+		
+		while socket.get_available_packet_count() > 0:
+			var packet = socket.get_packet()
+			var message = packet.get_string_from_utf8()
+			_handle_ws_message(message)
+			
+	elif state == WebSocketPeer.STATE_CLOSED or state == WebSocketPeer.STATE_CLOSING:
+		if ws_connected:
+			_set_online(false)
+			# Do not auto-reconnect if not logged in
+			if current_user:
+				_connect_to_ws()
+
+func _set_online(online):
+	ws_connected = online
+	connection_status_changed.emit(online)
 
 func login(username, password):
 	var http_request = HTTPRequest.new()
@@ -45,20 +81,9 @@ func signup(username, email, password):
 	if err != OK:
 		signup_failed.emit("Could not make signup request")
 
-func fetch_balance(user_id):
-	var http_request = HTTPRequest.new()
-	add_child(http_request)
-	http_request.request_completed.connect(_on_balance_request_completed)
-	
-	var headers = ["Authorization: Bearer " + auth_token]
-	var err = http_request.request(base_url + "/balance?id=" + user_id, headers)
-	if err != OK:
-		print("Could not fetch balance")
-
-func _on_login_request_completed(result, response_code, headers, body):
+func _on_login_request_completed(_result, response_code, _headers, body):
 	var response = JSON.parse_string(body.get_string_from_utf8())
 	if response_code == 200:
-		auth_token = response["token"]
 		current_user = {
 			"id": response["id"],
 			"username": response["username"],
@@ -66,21 +91,51 @@ func _on_login_request_completed(result, response_code, headers, body):
 		}
 		current_balance = current_user["balance"]
 		login_success.emit(current_user)
+		# Connect to WS after successful login
+		_connect_to_ws()
 	else:
 		var error = "Login failed"
 		if response and response.has("error"):
 			error = response["error"]
 		login_failed.emit(error)
 
-func _on_signup_request_completed(result, response_code, headers, body):
+func _on_signup_request_completed(_result, response_code, _headers, body):
 	var response = JSON.parse_string(body.get_string_from_utf8())
 	if response_code == 201:
 		signup_success.emit(response)
 	else:
 		signup_failed.emit("Signup failed")
 
-func _on_balance_request_completed(result, response_code, headers, body):
-	var response = JSON.parse_string(body.get_string_from_utf8())
-	if response_code == 200:
-		current_balance = response["balance"]
-		balance_updated.emit(current_balance)
+func fetch_balance():
+	_send_ws_message("get_balance", {})
+
+func get_history():
+	_send_ws_message("get_history", {})
+
+func _handle_ws_message(json_str):
+	var response = JSON.parse_string(json_str)
+	if not response: return
+	
+	var action = response.get("action", "")
+	var status = response.get("status", "")
+	var data = response.get("data", {})
+	
+	match action:
+		"get_balance":
+			if status == "success":
+				current_balance = data["balance"]
+				balance_updated.emit(current_balance)
+		"get_history":
+			if status == "success":
+				history_received.emit(data["history"])
+
+func _send_ws_message(action, data):
+	if socket.get_ready_state() != WebSocketPeer.STATE_OPEN:
+		print("Cannot send message, WebSocket not connected")
+		return
+		
+	var msg = JSON.stringify({
+		"action": action,
+		"data": data
+	})
+	socket.send_text(msg)

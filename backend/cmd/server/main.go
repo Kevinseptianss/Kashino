@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"kashino-backend/internal/api/handlers"
-	"kashino-backend/internal/api/middleware"
 	"kashino-backend/internal/repository"
 	"kashino-backend/internal/websocket"
 	"log"
@@ -53,13 +52,12 @@ func main() {
 	userHandler := handlers.NewUserHandler(userRepo)
 
 	// WebSocket Hub
-	hub := websocket.NewHub()
+	hub := websocket.NewHub(userRepo)
 	go hub.Run()
 
 	// Routes
 	http.HandleFunc("/signup", userHandler.CreateUser)
 	http.HandleFunc("/signin", userHandler.SignIn)
-	http.HandleFunc("/balance", middleware.JWTMiddleware(userHandler.GetBalance))
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		websocket.ServeWs(hub, w, r)
 	})

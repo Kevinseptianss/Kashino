@@ -25,6 +25,9 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 	if user.Balance == 0 {
 		user.Balance = 1000 // Default starting balance
 	}
+	if user.Tier == "" {
+		user.Tier = "VIP Silver"
+	}
 
 	// Initialize balance history with the initial deposit
 	user.BalanceHistory = []models.Transaction{

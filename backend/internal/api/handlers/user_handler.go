@@ -103,6 +103,7 @@ func (h *UserHandler) SignIn(w http.ResponseWriter, r *http.Request) {
 		"id":       user.ID.Hex(),
 		"username": user.Username,
 		"balance":  user.Balance,
+		"tier":     user.Tier,
 	})
 }
 
@@ -136,5 +137,6 @@ func (h *UserHandler) GetBalance(w http.ResponseWriter, r *http.Request) {
 		"balance":  user.Balance,
 		"history":  user.BalanceHistory,
 		"username": user.Username,
+		"tier":     user.Tier,
 	})
 }

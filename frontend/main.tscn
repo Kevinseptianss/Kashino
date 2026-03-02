@@ -34,6 +34,8 @@ script/source = "extends Control
 @onready var login_btn = $ContentRoot/Header/MarginContainer/HBoxContainer/LoginBtn
 @onready var balance_label = $ContentRoot/Header/MarginContainer/HBoxContainer/BalanceSection/MarginContainer/Label
 @onready var username_label = $ContentRoot/Header/MarginContainer/HBoxContainer/ProfileSection/UserInfo/Username
+@onready var status_dot = $ContentRoot/Header/MarginContainer/HBoxContainer/StatusSection/Dot
+@onready var status_text = $ContentRoot/Header/MarginContainer/HBoxContainer/StatusSection/Text
 
 func _ready():
 	# This sets the window to 1280x720 immediately on launch
@@ -42,7 +44,7 @@ func _ready():
 	# Optional: Center it on the screen
 	var screen_size = DisplayServer.screen_get_size()
 	var window_size = DisplayServer.window_get_size()
-	DisplayServer.window_set_position(screen_size / 2 - window_size / 2)
+	DisplayServer.window_set_position(Vector2i(Vector2(screen_size - window_size) / 2.0))
 
 	print(\"Main scene ready started\")
 	
@@ -54,6 +56,11 @@ func _ready():
 		var auth = get_node(\"/root/AuthService\")
 		auth.login_success.connect(_on_login_success)
 		auth.balance_updated.connect(update_balance)
+		auth.connection_status_changed.connect(_on_connection_status_changed)
+		_on_connection_status_changed(auth.is_connected)
+	
+	# Profile click
+	$ContentRoot/Header/MarginContainer/HBoxContainer/ProfileSection.gui_input.connect(_on_profile_gui_input)
 	
 	# Connect local signals
 	$ContentRoot/BottomNav/HBoxContainer/HomeBtn.pressed.connect(_on_home_pressed)
@@ -91,10 +98,24 @@ func update_balance(amount: int):
 		if count == 3 and i > 0:
 			formatted = \",\" + formatted
 			count = 0
-	balance_label.text = formatted
+	balance_label.text = \"C \" + formatted
 
 func update_username(new_name: String):
 	username_label.text = new_name
+
+func _on_connection_status_changed(online):
+	if online:
+		status_dot.color = Color.GREEN
+		status_text.text = \"Online\"
+	else:
+		status_dot.color = Color.RED
+		status_text.text = \"Offline\"
+
+func _on_profile_gui_input(event):
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		print(\"Opening Profile Page\")
+		var profile_page = preload(\"res://ProfilePage.tscn\").instantiate()
+		add_child(profile_page)
 
 func _on_home_pressed(): print(\"Home pressed\")
 func _on_games_pressed(): print(\"Games pressed\")
@@ -148,6 +169,7 @@ layout_mode = 2
 visible = false
 layout_mode = 2
 size_flags_horizontal = 3
+mouse_filter = 0
 theme_override_constants/separation = 12
 
 [node name="Avatar" type="ColorRect" parent="ContentRoot/Header/MarginContainer/HBoxContainer/ProfileSection"]
@@ -190,6 +212,21 @@ horizontal_alignment = 2
 vertical_alignment = 1
 theme_override_colors/font_color = Color(1, 0.843137, 0, 1)
 theme_override_font_sizes/font_size = 18
+
+[node name="StatusSection" type="HBoxContainer" parent="ContentRoot/Header/MarginContainer/HBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="Dot" type="ColorRect" parent="ContentRoot/Header/MarginContainer/HBoxContainer/StatusSection"]
+custom_minimum_size = Vector2(10, 10)
+layout_mode = 2
+size_flags_vertical = 4
+color = Color(1, 0, 0, 1)
+
+[node name="Text" type="Label" parent="ContentRoot/Header/MarginContainer/HBoxContainer/StatusSection"]
+layout_mode = 2
+text = "Offline"
+theme_override_font_sizes/font_size = 12
 
 [node name="LoginBtn" type="Button" parent="ContentRoot/Header/MarginContainer/HBoxContainer"]
 custom_minimum_size = Vector2(100, 45)
