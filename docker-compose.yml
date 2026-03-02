@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "9090:9090"
+    environment:
+      - MONGO_URI=mongodb://mongodb:27018
+      - PORT=9090
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - mongodb
+
+  mongodb:
+    image: mongo:latest
+    command: mongod --port 27018
+    ports:
+      - "27018:27018"
+    volumes:
+      - mongodb_data:/data/db
+
+  mongo-express:
+    image: mongo-express:latest
+    restart: always
+    ports:
+      - "9091:8081"
+    environment:
+      - ME_CONFIG_MONGODB_SERVER=mongodb
+      - ME_CONFIG_MONGODB_PORT=27018
+      - ME_CONFIG_BASICAUTH_USERNAME=admin
+      - ME_CONFIG_BASICAUTH_PASSWORD=pass
+    depends_on:
+      - mongodb
+
+volumes:
+  mongodb_data:

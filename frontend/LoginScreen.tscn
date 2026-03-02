@@ -1,0 +1,174 @@
+[gd_scene load_steps=5 format=3]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bg"]
+bg_color = Color(0.0392157, 0.0392157, 0.0588235, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_card"]
+bg_color = Color(0.0784314, 0.0784314, 0.117647, 1)
+corner_radius_top_left = 30
+corner_radius_top_right = 30
+corner_radius_bottom_right = 30
+corner_radius_bottom_left = 30
+shadow_color = Color(0, 0, 0, 0.5)
+shadow_size = 20
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_btn"]
+bg_color = Color(0.588235, 0.439216, 0.866667, 1)
+corner_radius_top_left = 15
+corner_radius_top_right = 15
+corner_radius_bottom_right = 15
+corner_radius_bottom_left = 15
+
+[sub_resource type="GDScript" id="GDScript_login"]
+script/source = "extends Control
+
+signal auth_complete
+
+@onready var username_input = $VBox/Card/Margin/Form/Username
+@onready var email_input = $VBox/Card/Margin/Form/Email
+@onready var password_input = $VBox/Card/Margin/Form/Password
+@onready var submit_btn = $VBox/Card/Margin/Form/SubmitBtn
+@onready var switch_btn = $VBox/Card/Margin/Form/SwitchModeBtn
+@onready var error_label = $VBox/Card/Margin/Form/ErrorLabel
+
+var is_login_mode = true
+
+func _ready():
+	# Configure for Login initially
+	_update_ui()
+	
+	# Connect auth service signals
+	if has_node(\"/root/AuthService\"):
+		var auth = get_node(\"/root/AuthService\")
+		auth.login_success.connect(_on_auth_success)
+		auth.login_failed.connect(_on_auth_failed)
+		auth.signup_success.connect(_on_auth_success)
+		auth.signup_failed.connect(_on_auth_failed)
+	else:
+		error_label.text = \"ERROR: AuthService not found! Please check Autoload settings.\"
+		submit_btn.disabled = true
+
+func _update_ui():
+	if is_login_mode:
+		$VBox/Title.text = \"Welcome Back\"
+		email_input.hide()
+		submit_btn.text = \"Login\"
+		switch_btn.text = \"Don't have an account? Sign Up\"
+	else:
+		$VBox/Title.text = \"Join Kashino\"
+		email_input.show()
+		submit_btn.text = \"Create Account\"
+		switch_btn.text = \"Already have an account? Login\"
+	error_label.text = \"\"
+
+func _on_switch_mode_pressed():
+	is_login_mode = !is_login_mode
+	_update_ui()
+
+func _on_submit_pressed():
+	error_label.text = \"Authenticating...\"
+	var auth = get_node(\"/root/AuthService\")
+	if is_login_mode:
+		auth.login(username_input.text, password_input.text)
+	else:
+		auth.signup(username_input.text, email_input.text, password_input.text)
+
+func _on_auth_success(_user_data):
+	print(\"Auth success, closing login screen\")
+	auth_complete.emit()
+	queue_free()
+
+func _on_auth_failed(msg):
+	error_label.text = msg
+"
+
+[node name="LoginScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = SubResource("GDScript_login")
+
+[node name="BG" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_bg")
+
+[node name="VBox" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 14
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = 50.0
+offset_top = -250.0
+offset_right = -50.0
+offset_bottom = 250.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 40
+
+[node name="Title" type="Label" parent="VBox"]
+layout_mode = 2
+text = "Join Kashino"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 36
+
+[node name="Card" type="PanelContainer" parent="VBox"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_card")
+
+[node name="Margin" type="MarginContainer" parent="VBox/Card"]
+layout_mode = 2
+theme_override_constants/margin_left = 30
+theme_override_constants/margin_top = 40
+theme_override_constants/margin_right = 30
+theme_override_constants/margin_bottom = 40
+
+[node name="Form" type="VBoxContainer" parent="VBox/Card/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="Username" type="LineEdit" parent="VBox/Card/Margin/Form"]
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+placeholder_text = "Username"
+alignment = 1
+
+[node name="Email" type="LineEdit" parent="VBox/Card/Margin/Form"]
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+placeholder_text = "Email"
+alignment = 1
+
+[node name="Password" type="LineEdit" parent="VBox/Card/Margin/Form"]
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+placeholder_text = "Password"
+alignment = 1
+secret = true
+
+[node name="ErrorLabel" type="Label" parent="VBox/Card/Margin/Form"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.439216, 0.439216, 1)
+horizontal_alignment = 1
+
+[node name="SubmitBtn" type="Button" parent="VBox/Card/Margin/Form"]
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
+theme_override_styles/normal = SubResource("StyleBoxFlat_btn")
+text = "Login"
+
+[node name="SwitchModeBtn" type="Button" parent="VBox/Card/Margin/Form"]
+layout_mode = 2
+flat = true
+text = "Don't have an account? Sign Up"
+
+[connection signal="pressed" from="VBox/Card/Margin/Form/SubmitBtn" to="." method="_on_submit_pressed"]
+[connection signal="pressed" from="VBox/Card/Margin/Form/SwitchModeBtn" to="." method="_on_switch_mode_pressed"]
