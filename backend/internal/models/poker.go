@@ -67,3 +67,14 @@ type PokerHistory struct {
 	Details   string             `bson:"details,omitempty" json:"details,omitempty"`
 	Timestamp primitive.DateTime `bson:"timestamp" json:"timestamp"`
 }
+
+type SlotHistory struct {
+	ID        primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	UserID    string             `bson:"user_id" json:"user_id"`
+	Username  string             `bson:"username" json:"username"`
+	Bet       float64            `bson:"bet" json:"bet"`
+	Lines     int                `bson:"lines" json:"lines"`
+	Result    [][]int            `bson:"result" json:"result"` // 5x3 grid or similar
+	WinAmount float64            `bson:"win_amount" json:"win_amount"`
+	Timestamp primitive.DateTime `bson:"timestamp" json:"timestamp"`
+}

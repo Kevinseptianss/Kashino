@@ -67,11 +67,19 @@ var game_results = []
 var shaking = 0.0
 var auth = null
 
+var current_bet = 100
+var num_lines = 1
+
 func _ready():
 	if has_node(\"/root/AuthService\"):
 		auth = get_node(\"/root/AuthService\")
 		update_balance_display(auth.current_balance)
 		auth.balance_updated.connect(update_balance_display)
+	
+	_update_bet_ui()
+	%BetMinusBtn.pressed.connect(_on_bet_minus_pressed)
+	%BetPlusBtn.pressed.connect(_on_bet_plus_pressed)
+	%LinesSpinBox.value_changed.connect(_on_lines_changed)
 	
 	for i in range(5):
 		var reel = preload(\"res://SlotReel.tscn\").instantiate()
@@ -86,12 +94,12 @@ func update_balance_display(amount):
 func _on_spin_pressed():
 	if reels_finished < reels.size() and reels_finished > 0: return
 	
-	if auth and auth.current_balance < 100:
+	if auth and auth.current_balance < (current_bet * num_lines):
 		result_label.text = \"NOT ENOUGH BALANCE\"
 		return
 	
 	if auth:
-		auth.update_balance(-100, \"slot_spin\")
+		auth.update_balance(-(current_bet * num_lines), \"slot_spin\")
 	
 	reels_finished = 0
 	game_results.clear()
@@ -113,33 +121,95 @@ func _on_reel_stopped(results):
 		_check_wins()
 
 func _check_wins():
-	var middle_row = []
-	for i in range(5):
-		middle_row.append(game_results[i][1])
+	var total_win = 0
+	var win_details = []
 	
-	var last_icon = middle_row[0]
-	var matches = 1
-	for i in range(1, 5):
-		if middle_row[i] == last_icon:
-			matches += 1
-		else:
-			break
+	# 5x3 Result Grid
+	var grid = [] # rows[3] -> cols[5]
+	for row in range(3):
+		var row_icons = []
+		for col in range(5):
+			row_icons.append(game_results[col][row])
+		grid.append(row_icons)
 	
-	if matches >= 3:
-		var win_amount = 500
-		if matches == 4: win_amount = 2500
-		elif matches == 5: win_amount = 15000
+	# Define Lines (0-middle, 1-top, 2-bottom, 3-diag1, 4-diag2)
+	var lines = [
+		[1,1,1,1,1], # Middle
+		[0,0,0,0,0], # Top
+		[2,2,2,2,2], # Bottom
+		[0,1,2,1,0], # V-shape
+		[2,1,0,1,2], # Inverted V
+		[0,0,1,2,2], # Step Down
+		[2,2,1,0,0], # Step Up
+		[1,0,0,0,1], # Top arc
+		[1,2,2,2,1]  # Bottom arc
+	]
+	
+	var logged_grid = []
+	for c in range(5):
+		logged_grid.append(game_results[c])
+
+	for i in range(min(num_lines, lines.size())):
+		var line = lines[i]
+		var line_icons = []
+		for col in range(5):
+			line_icons.append(grid[line[col]][col])
 		
-		result_label.text = \"WIN! %d MATCHES (C %d)\" % [matches, win_amount]
+		var last_icon = line_icons[0]
+		var matches = 1
+		for j in range(1, 5):
+			if line_icons[j] == last_icon:
+				matches += 1
+			else:
+				break
+		
+		if matches >= 3:
+			var multiplier = 5
+			if matches == 4: multiplier = 25
+			elif matches == 5: multiplier = 150
+			
+			var win = current_bet * multiplier
+			total_win += win
+			win_details.append(\"LINE %d: %d MATCHES (C %d)\" % [i+1, matches, win])
+	
+	if total_win > 0:
+		result_label.text = \"WIN: C %d!\" % total_win
+		if win_details.size() > 1:
+			result_label.text += \" (%d LINES)\" % win_details.size()
+			
 		result_label.modulate = Color(1, 0.9, 0)
-		shaking = 15.0
+		shaking = 20.0
 		coin_particles.emitting = true
-		
 		if auth:
-			auth.update_balance(win_amount, \"slot_win\")
+			auth.update_balance(total_win, \"slot_win\")
 	else:
 		result_label.text = \"SPIN AGAIN\"
 		result_label.modulate = Color(1, 1, 1, 0.6)
+	
+	# Send Log to Database
+	if auth:
+		auth._send_ws_message(\"slot_log\", {
+			\"bet\": current_bet,
+			\"lines\": num_lines,
+			\"result\": logged_grid,
+			\"win_amount\": total_win
+		})
+
+func _on_bet_minus_pressed():
+	if current_bet > 1:
+		current_bet = max(1, current_bet - 10)
+		_update_bet_ui()
+
+func _on_bet_plus_pressed():
+	current_bet += 10
+	_update_bet_ui()
+
+func _on_lines_changed(val):
+	num_lines = int(val)
+	_update_bet_ui()
+
+func _update_bet_ui():
+	%BetInfo.text = str(current_bet)
 
 func _process(delta):
 	if shaking > 0:
@@ -276,12 +346,60 @@ theme_override_font_sizes/font_size = 32
 text = "GOOD LUCK!"
 horizontal_alignment = 1
 
-[node name="BetInfo" type="Label" parent="MainLayout/BottomControls/VBox/StatusSection"]
+[node name="BetControls" type="HBoxContainer" parent="MainLayout/BottomControls/VBox/StatusSection"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.5, 0.5, 0.6, 1)
-theme_override_font_sizes/font_size = 18
-text = "BET: 100"
+alignment = 1
+theme_override_constants/separation = 20
+
+[node name="LinesSection" type="VBoxContainer" parent="MainLayout/BottomControls/VBox/StatusSection/BetControls"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="MainLayout/BottomControls/VBox/StatusSection/BetControls/LinesSection"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "LINES"
 horizontal_alignment = 1
+
+[node name="LinesSpinBox" type="SpinBox" parent="MainLayout/BottomControls/VBox/StatusSection/BetControls/LinesSection"]
+unique_name_in_owner = true
+layout_mode = 2
+min_value = 1.0
+max_value = 9.0
+value = 1.0
+alignment = 1
+
+[node name="BetSection" type="VBoxContainer" parent="MainLayout/BottomControls/VBox/StatusSection/BetControls"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="MainLayout/BottomControls/VBox/StatusSection/BetControls/BetSection"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "BET"
+horizontal_alignment = 1
+
+[node name="HBox" type="HBoxContainer" parent="MainLayout/BottomControls/VBox/StatusSection/BetControls/BetSection"]
+layout_mode = 2
+
+[node name="BetMinusBtn" type="Button" parent="MainLayout/BottomControls/VBox/StatusSection/BetControls/BetSection/HBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(40, 40)
+layout_mode = 2
+text = "-"
+
+[node name="BetInfo" type="Label" parent="MainLayout/BottomControls/VBox/StatusSection/BetControls/BetSection/HBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.8, 1, 1)
+theme_override_font_sizes/font_size = 18
+text = "100"
+horizontal_alignment = 1
+
+[node name="BetPlusBtn" type="Button" parent="MainLayout/BottomControls/VBox/StatusSection/BetControls/BetSection/HBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(40, 40)
+layout_mode = 2
+text = "+"
 
 [node name="SpinBtn" type="Button" parent="MainLayout/BottomControls/VBox"]
 unique_name_in_owner = true

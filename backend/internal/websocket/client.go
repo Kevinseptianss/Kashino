@@ -238,6 +238,20 @@ func (c *Client) handleAction(msg WSMessage) {
 		c.Hub.RemovePlayerFromAllRooms(c.UserID.Hex())
 		c.sendSuccess("standup", nil)
 
+	case "slot_log":
+		var slotData struct {
+			Bet       float64 `json:"bet"`
+			Lines     int     `json:"lines"`
+			Result    [][]int `json:"result"`
+			WinAmount float64 `json:"win_amount"`
+		}
+		if err := json.Unmarshal(msg.Data, &slotData); err != nil {
+			c.sendError("slot_log", "Invalid slot log data")
+			return
+		}
+		c.Hub.LogSlotEvent(c.UserID.Hex(), c.ID, slotData.Bet, slotData.Lines, slotData.Result, slotData.WinAmount)
+		c.sendSuccess("slot_log", nil)
+
 	default:
 		log.Printf("Unknown action: %s", msg.Action)
 	}

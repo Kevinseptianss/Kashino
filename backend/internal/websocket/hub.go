@@ -367,3 +367,21 @@ func (h *Hub) LogPokerEvent(roomID string, handID string, event string, playerID
 
 	h.PokerRepo.LogEvent(ctx, history)
 }
+
+func (h *Hub) LogSlotEvent(userID string, username string, bet float64, lines int, result [][]int, win float64) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	history := models.SlotHistory{
+		ID:        primitive.NewObjectID(),
+		UserID:    userID,
+		Username:  username,
+		Bet:       bet,
+		Lines:     lines,
+		Result:    result,
+		WinAmount: win,
+		Timestamp: primitive.NewDateTimeFromTime(time.Now()),
+	}
+
+	h.PokerRepo.LogSlotEvent(ctx, history)
+}
