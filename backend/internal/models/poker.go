@@ -16,6 +16,7 @@ type Player struct {
 	LastBet     float64 `json:"last_bet"`
 	IsFolded    bool    `json:"is_folded"`
 	InGame      bool    `json:"in_game"` // Sitting vs Playing
+	HasActed    bool    `json:"has_acted"`
 	CurrentHand string  `json:"current_hand,omitempty"`
 }
 

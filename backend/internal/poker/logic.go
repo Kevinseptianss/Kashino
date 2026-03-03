@@ -69,6 +69,7 @@ func StartHand(room *models.Room, bm BalanceManager) {
 			cursor += 2
 			room.GameState.Players[i].IsFolded = false
 			room.GameState.Players[i].LastBet = 0
+			room.GameState.Players[i].HasActed = false
 		}
 	}
 
@@ -119,6 +120,7 @@ func HandleAction(room *models.Room, playerID string, action models.PokerAction,
 		for i := range room.GameState.Players {
 			if room.GameState.Players[i].ID == playerID {
 				room.GameState.Players[i].IsFolded = true
+				room.GameState.Players[i].HasActed = true
 				bm.LogPokerEvent(room.ID, room.GameState.ID, "fold", playerID, room.GameState.Players[i].Username, 0, room.GameState.Pot, "Fold")
 				break
 			}
@@ -141,15 +143,16 @@ func HandleAction(room *models.Room, playerID string, action models.PokerAction,
 					room.GameState.Players[i].LastBet += diff
 					bm.UpdateBalance(playerID, -diff, "poker_bet")
 					bm.LogPokerEvent(room.ID, room.GameState.ID, action.Action, playerID, room.GameState.Players[i].Username, diff, room.GameState.Pot, action.Action)
+				} else {
+					bm.LogPokerEvent(room.ID, room.GameState.ID, action.Action, playerID, room.GameState.Players[i].Username, 0, room.GameState.Pot, action.Action)
 				}
+				room.GameState.Players[i].HasActed = true
 				break
 			}
 		}
 	case "raise":
 		for i := range room.GameState.Players {
 			if room.GameState.Players[i].ID == playerID {
-				// Raise amount is the total amount player wants to have bet this round
-				// So if maxBet is 20 and they want to raise to 60, diff is 60 - theirCurrentLastBet
 				diff := action.Amount - room.GameState.Players[i].LastBet
 				if diff > 0 {
 					room.GameState.Players[i].Balance -= diff
@@ -157,6 +160,15 @@ func HandleAction(room *models.Room, playerID string, action models.PokerAction,
 					room.GameState.Players[i].LastBet += diff
 					bm.UpdateBalance(playerID, -diff, "poker_bet")
 					bm.LogPokerEvent(room.ID, room.GameState.ID, "raise", playerID, room.GameState.Players[i].Username, diff, room.GameState.Pot, "Raise to "+fmt.Sprintf("%.0f", action.Amount))
+				}
+
+				// When someone raises, everyone else must act again
+				for j := range room.GameState.Players {
+					if room.GameState.Players[j].ID == playerID {
+						room.GameState.Players[j].HasActed = true
+					} else if room.GameState.Players[j].InGame && !room.GameState.Players[j].IsFolded {
+						room.GameState.Players[j].HasActed = false
+					}
 				}
 				break
 			}
@@ -177,8 +189,26 @@ func nextTurn(room *models.Room, bm BalanceManager) {
 		}
 	}
 
-	if activeCount <= 1 {
-		EndHand(room, bm)
+	// Check if betting is settled
+	maxBet := 0.0
+	for _, p := range room.GameState.Players {
+		if p.InGame && !p.IsFolded && p.LastBet > maxBet {
+			maxBet = p.LastBet
+		}
+	}
+
+	allActedAndMatched := true
+	for _, p := range room.GameState.Players {
+		if p.InGame && !p.IsFolded {
+			if !p.HasActed || p.LastBet != maxBet {
+				allActedAndMatched = false
+				break
+			}
+		}
+	}
+
+	if allActedAndMatched {
+		advanceRound(room, bm)
 		return
 	}
 
@@ -193,17 +223,18 @@ func nextTurn(room *models.Room, bm BalanceManager) {
 	n := len(room.GameState.Players)
 	for i := 1; i <= n; i++ {
 		nextIdx := (currIdx + i) % n
-		if !room.GameState.Players[nextIdx].IsFolded && room.GameState.Players[nextIdx].InGame {
-			// If we cycled back to dealer/UTG and round should end, transition
-			// For simplicity: after one full cycle, we advance round
-			if nextIdx == (room.GameState.DealerIdx+1)%n {
-				advanceRound(room, bm)
+		p := &room.GameState.Players[nextIdx]
+		if p.InGame && !p.IsFolded {
+			// If betting is not settled, and this player hasn't matched or hasn't acted, it's their turn
+			if !p.HasActed || p.LastBet != maxBet {
+				room.GameState.CurrentTurn = p.ID
 				return
 			}
-			room.GameState.CurrentTurn = room.GameState.Players[nextIdx].ID
-			return
 		}
 	}
+
+	// Safety fallback: if we can't find anyone, advance
+	advanceRound(room, bm)
 }
 
 func advanceRound(room *models.Room, bm BalanceManager) {
@@ -227,6 +258,7 @@ func advanceRound(room *models.Room, bm BalanceManager) {
 	// Reset bets for the new round
 	for i := range room.GameState.Players {
 		room.GameState.Players[i].LastBet = 0
+		room.GameState.Players[i].HasActed = false
 	}
 
 	// Reset current turn to first active player after dealer
