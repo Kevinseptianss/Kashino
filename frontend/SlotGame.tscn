@@ -63,7 +63,7 @@ script/source = "extends Control
 
 var reels = []
 var reels_finished = 0
-var game_results = []
+var game_results = [null, null, null, null, null]
 var shaking = 0.0
 var auth = null
 
@@ -92,7 +92,7 @@ func _ready():
 		reel.position.x = i * 130
 		reels_container.add_child(reel)
 		reels.append(reel)
-		reel.reel_stopped.connect(_on_reel_stopped)
+		reel.reel_stopped.connect(_on_reel_stopped.bind(i))
 
 func update_balance_display(amount):
 	balance_label.text = \"BALANCE: C \" + str(int(amount))
@@ -108,8 +108,13 @@ func _on_spin_pressed():
 		auth.update_balance(-(current_bet * num_lines), \"slot_spin\")
 	
 	reels_finished = 0
-	game_results.clear()
+	game_results = [null, null, null, null, null]
 	result_label.text = \"\"
+	
+	# Clear previous win highlights
+	for reel in reels:
+		for icon in reel.icons:
+			icon.set_winning(false)
 	spin_btn.disabled = true
 	
 	# Biased Win Rate Logic (60% Win / 40% Loss)
@@ -154,9 +159,9 @@ func _on_how_to_play_pressed():
 func _on_close_help_pressed():
 	%HowToPlayPopup.hide()
 
-func _on_reel_stopped(results):
+func _on_reel_stopped(results, index):
 	reels_finished += 1
-	game_results.append(results)
+	game_results[index] = results
 	shaking = 5.0
 	
 	if reels_finished == reels.size():
@@ -352,6 +357,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_bg")
 
 [node name="MainLayout" type="VBoxContainer" parent="."]
@@ -372,6 +378,7 @@ theme_override_constants/margin_bottom = 20
 
 [node name="HBox" type="HBoxContainer" parent="MainLayout/TopNav"]
 layout_mode = 2
+mouse_filter = 2
 theme_override_constants/separation = 20
 
 [node name="ExitBtn" type="Button" parent="MainLayout/TopNav/HBox"]
@@ -407,12 +414,14 @@ horizontal_alignment = 1
 [node name="ReelDisplay" type="MarginContainer" parent="MainLayout"]
 layout_mode = 2
 size_flags_vertical = 3
+mouse_filter = 2
 theme_override_constants/margin_left = 15
 theme_override_constants/margin_top = 40
 theme_override_constants/margin_right = 15
 theme_override_constants/margin_bottom = 40
 
 [node name="SlotWindow" type="Panel" parent="MainLayout/ReelDisplay"]
+clip_contents = true
 clip_children = 2
 custom_minimum_size = Vector2(650, 600)
 layout_mode = 2

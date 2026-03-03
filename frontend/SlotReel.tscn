@@ -37,14 +37,34 @@ func stop_with_target(targets: Array):
 func stop():
 	spinning = false
 
+func _get_icon_at_y(target_y: float):
+	var closest = null
+	var min_dist = 9999.0
+	for icon in icons:
+		var dist = abs(icon.position.y - target_y)
+		if dist < min_dist:
+			min_dist = dist
+			closest = icon
+	return closest
+
 func get_visible_icon_objects():
-	var sorted_icons = icons.duplicate()
-	sorted_icons.sort_custom(func(a,b): return a.position.y < b.position.y)
-	return sorted_icons.slice(2, 7) # Returns the 5 visible icons
+	var visible = []
+	for y in [-240, -120, 0, 120, 240]:
+		visible.append(_get_icon_at_y(y))
+	return visible
 
 func _kick_tween():
 	speed = 0
-	# Snap positions to nearest 120
+	
+	# Force targeting if available
+	# Row 0 (-240) to Row 4 (240)
+	if target_icons.size() == 5:
+		for i in range(5):
+			var target_y = -240 + (i * 120)
+			var icon = _get_icon_at_y(target_y)
+			if icon:
+				icon.set_icon(target_icons[i])
+	
 	for icon in icons:
 		icon.set_blur(0.0)
 		icon.position.y = round(icon.position.y / icon_height) * icon_height
@@ -59,11 +79,9 @@ func _kick_tween():
 
 func _on_tween_finished():
 	var results = []
-	var sorted_icons = icons.duplicate()
-	sorted_icons.sort_custom(func(a,b): return a.position.y < b.position.y)
-	
-	for i in range(2, 7): # Visible 5
-		results.append(sorted_icons[i].type)
+	for y in [-240, -120, 0, 120, 240]:
+		var icon = _get_icon_at_y(y)
+		results.append(icon.type)
 	reel_stopped.emit(results)
 
 func _process(delta):
@@ -75,12 +93,7 @@ func _process(delta):
 			
 			if icon.position.y > icon_height * 5:
 				icon.position.y -= icon_height * 10
-				if target_icons.size() > 0 and not spinning:
-					# Use pre-determined icons when stopping
-					# First recycled icon becomes Row 0, then Row 1, etc.
-					icon.set_icon(target_icons.pop_front())
-				else:
-					icon.set_icon(randi() % 6)
+				icon.set_icon(randi() % 6)
 		
 		if not spinning:
 			speed = lerp(speed, 0.0, delta * 4.0)
