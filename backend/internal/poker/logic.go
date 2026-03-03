@@ -224,6 +224,11 @@ func advanceRound(room *models.Room, bm BalanceManager) {
 
 	updateHandRanks(room)
 
+	// Reset bets for the new round
+	for i := range room.GameState.Players {
+		room.GameState.Players[i].LastBet = 0
+	}
+
 	// Reset current turn to first active player after dealer
 	n := len(room.GameState.Players)
 	for i := 1; i <= n; i++ {

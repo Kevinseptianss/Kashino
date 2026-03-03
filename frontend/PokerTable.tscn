@@ -76,8 +76,8 @@ func _ready():
 	bet_slider.value_changed.connect(_on_bet_slider_changed)
 
 func _on_bet_slider_changed(val):
-	bet_label.text = \"RAISE: C \" + str(int(val))
-	raise_btn.text = \"RAISE\\n(C \" + str(int(val)) + \")\"
+	bet_label.text = \"RAISE TO: C \" + str(int(val))
+	raise_btn.text = \"RAISE TO\\n(C \" + str(int(val)) + \")\"
 
 func _on_room_update(room_data):
 	if room_data.get(\"id\") != room_id: return
@@ -142,7 +142,7 @@ func _refresh_ui():
 		winner_label.text = \"HAND OVER - DIVIDING POT\"
 		winner_label.show()
 	else:
-		fireworks.emitting = false
+		_fireworks.emitting = false
 	
 	standup_btn.visible = is_seated
 	
@@ -665,7 +665,7 @@ alignment = 1
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 18
-text = "RAISE: C 20"
+text = "RAISE TO: C 20"
 horizontal_alignment = 1
 
 [node name="BetSlider" type="HSlider" parent="Controls"]
@@ -706,7 +706,7 @@ text = "CALL
 unique_name_in_owner = true
 custom_minimum_size = Vector2(120, 70)
 layout_mode = 2
-text = "RAISE
+text = "RAISE TO
 (C 20)"
 
 [connection signal="pressed" from="Header/HBox/BackBtn" to="." method="_on_back_pressed"]
