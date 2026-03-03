@@ -8,16 +8,17 @@ type Card struct {
 }
 
 type Player struct {
-	ID          string `json:"id"`
-	Username    string `json:"username"`
-	Balance     int64  `json:"balance"`
-	Cards       []Card `json:"cards,omitempty"`
-	Position    int    `json:"position"` // 0-4
-	LastBet     int64  `json:"last_bet"`
-	IsFolded    bool   `json:"is_folded"`
-	InGame      bool   `json:"in_game"` // Sitting vs Playing
-	HasActed    bool   `json:"has_acted"`
-	CurrentHand string `json:"current_hand,omitempty"`
+	ID               string `json:"id"`
+	Username         string `json:"username"`
+	Balance          int64  `json:"balance"`
+	Cards            []Card `json:"cards,omitempty"`
+	Position         int    `json:"position"` // 0-4
+	LastBet          int64  `json:"last_bet"`
+	IsFolded         bool   `json:"is_folded"`
+	InGame           bool   `json:"in_game"` // Sitting vs Playing
+	HasActed         bool   `json:"has_acted"`
+	CurrentHand      string `json:"current_hand,omitempty"`
+	HandContribution int64  `json:"hand_contribution"`
 }
 
 type WinnerInfo struct {

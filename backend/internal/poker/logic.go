@@ -5,6 +5,7 @@ import (
 	"kashino-backend/internal/models"
 	"log"
 	"math/rand"
+	"sort"
 	"time"
 )
 
@@ -72,6 +73,7 @@ func StartHand(room *models.Room, bm BalanceManager) {
 			room.GameState.Players[i].IsFolded = false
 			room.GameState.Players[i].LastBet = 0
 			room.GameState.Players[i].HasActed = false
+			room.GameState.Players[i].HandContribution = 0
 		}
 	}
 
@@ -84,6 +86,7 @@ func StartHand(room *models.Room, bm BalanceManager) {
 	// Deduct Small Blind
 	sbPlayer := &room.GameState.Players[sbIdx]
 	sbPlayer.LastBet = room.SmallBlind
+	sbPlayer.HandContribution = room.SmallBlind
 	sbPlayer.Balance -= room.SmallBlind
 	bm.UpdateBalance(sbPlayer.ID, -room.SmallBlind, "poker_blind")
 	bm.LogPokerEvent(room.ID, room.GameState.ID, "small_blind", sbPlayer.ID, sbPlayer.Username, room.SmallBlind, room.SmallBlind, "Small Blind")
@@ -91,6 +94,7 @@ func StartHand(room *models.Room, bm BalanceManager) {
 	// Deduct Big Blind
 	bbPlayer := &room.GameState.Players[bbIdx]
 	bbPlayer.LastBet = room.BigBlind
+	bbPlayer.HandContribution = room.BigBlind
 	bbPlayer.Balance -= room.BigBlind
 	bm.UpdateBalance(bbPlayer.ID, -room.BigBlind, "poker_blind")
 	bm.LogPokerEvent(room.ID, room.GameState.ID, "big_blind", bbPlayer.ID, bbPlayer.Username, room.BigBlind, room.SmallBlind+room.BigBlind, "Big Blind")
@@ -145,6 +149,7 @@ func HandleAction(room *models.Room, playerID string, action models.PokerAction,
 					room.GameState.Players[i].Balance -= diff
 					room.GameState.Pot += diff
 					room.GameState.Players[i].LastBet = maxBet
+					room.GameState.Players[i].HandContribution += diff
 					bm.UpdateBalance(playerID, -diff, "poker_bet")
 					bm.LogPokerEvent(room.ID, room.GameState.ID, action.Action, playerID, room.GameState.Players[i].Username, diff, room.GameState.Pot, action.Action)
 				} else {
@@ -162,6 +167,7 @@ func HandleAction(room *models.Room, playerID string, action models.PokerAction,
 					room.GameState.Players[i].Balance -= diff
 					room.GameState.Pot += diff
 					room.GameState.Players[i].LastBet += diff
+					room.GameState.Players[i].HandContribution += diff
 					bm.UpdateBalance(playerID, -diff, "poker_bet")
 
 					// When someone raises, everyone else must act again
@@ -290,48 +296,100 @@ func advanceRound(room *models.Room, bm BalanceManager) {
 }
 
 func EndHand(room *models.Room, bm BalanceManager) {
-	// 1. Identify all active, non-folded players
-	var eligiblePlayers []*models.Player
-	for i := range room.GameState.Players {
-		if !room.GameState.Players[i].IsFolded && room.GameState.Players[i].InGame {
-			eligiblePlayers = append(eligiblePlayers, &room.GameState.Players[i])
-		}
-	}
-
-	// 2. Find the highest score among eligible players
-	maxScore := -1
-	for _, p := range eligiblePlayers {
-		score := GetHandScore(p.Cards, room.GameState.Community)
-		if score > maxScore {
-			maxScore = score
-		}
-	}
-
-	// 3. Find all winners who share the highest score
-	var winners []*models.Player
-	for _, p := range eligiblePlayers {
-		score := GetHandScore(p.Cards, room.GameState.Community)
-		if score == maxScore {
-			winners = append(winners, p)
-		}
-	}
-
+	log.Printf("POKER: Entering EndHand. Total Pot: %d", room.GameState.Pot)
 	room.GameState.LastWinners = nil
-	if len(winners) > 0 {
-		// Divide pot among winners (handle split pot)
-		share := room.GameState.Pot / int64(len(winners))
-		for _, w := range winners {
-			w.Balance += share
-			bm.UpdateBalance(w.ID, share, "poker_win")
-			bm.LogPokerEvent(room.ID, room.GameState.ID, "win", w.ID, w.Username, share, room.GameState.Pot, "Winner")
 
-			room.GameState.LastWinners = append(room.GameState.LastWinners, models.WinnerInfo{
-				UserID:          w.ID,
-				Username:        w.Username,
-				Amount:          share,
-				HandDescription: w.CurrentHand,
-			})
+	// 1. Calculate side pots
+	// Unique contributions from all players (including folded ones)
+	contribMap := make(map[int64]bool)
+	for _, p := range room.GameState.Players {
+		if p.HandContribution > 0 {
+			contribMap[p.HandContribution] = true
 		}
+	}
+
+	var thresholds []int64
+	for t := range contribMap {
+		thresholds = append(thresholds, t)
+	}
+	sort.Slice(thresholds, func(i, j int) bool { return thresholds[i] < thresholds[j] })
+
+	prevThreshold := int64(0)
+	for _, t := range thresholds {
+		potSize := int64(0)
+		rangeDiff := t - prevThreshold
+		var eligibleWinners []*models.Player
+
+		for i := range room.GameState.Players {
+			p := &room.GameState.Players[i]
+			// Money contribution to this specific sub-pot
+			if p.HandContribution >= t {
+				potSize += rangeDiff
+				if p.InGame && !p.IsFolded {
+					eligibleWinners = append(eligibleWinners, p)
+				}
+			} else if p.HandContribution > prevThreshold {
+				potSize += (p.HandContribution - prevThreshold)
+			}
+		}
+
+		if potSize > 0 && len(eligibleWinners) > 0 {
+			// Find high score for this sub-pot
+			maxScore := -1
+			for _, p := range eligibleWinners {
+				score := GetHandScore(p.Cards, room.GameState.Community)
+				if score > maxScore {
+					maxScore = score
+				}
+			}
+
+			// Find winners for this sub-pot
+			var potWinners []*models.Player
+			for _, p := range eligibleWinners {
+				score := GetHandScore(p.Cards, room.GameState.Community)
+				if score == maxScore {
+					potWinners = append(potWinners, p)
+				}
+			}
+
+			// Distribute sub-pot
+			share := potSize / int64(len(potWinners))
+			remainder := potSize % int64(len(potWinners))
+
+			for i, w := range potWinners {
+				amount := share
+				if i == 0 {
+					amount += remainder // Small remainder goes to first winner
+				}
+				w.Balance += amount
+				bm.UpdateBalance(w.ID, amount, "poker_win")
+				bm.LogPokerEvent(room.ID, room.GameState.ID, "win", w.ID, w.Username, amount, room.GameState.Pot, "Sub-pot Winner")
+
+				// Update LastWinners for UI reveal
+				found := false
+				for j := range room.GameState.LastWinners {
+					if room.GameState.LastWinners[j].UserID == w.ID {
+						room.GameState.LastWinners[j].Amount += amount
+						found = true
+						break
+					}
+				}
+				if !found {
+					room.GameState.LastWinners = append(room.GameState.LastWinners, models.WinnerInfo{
+						UserID:          w.ID,
+						Username:        w.Username,
+						Amount:          amount,
+						HandDescription: w.CurrentHand,
+					})
+				}
+			}
+		} else if potSize > 0 {
+			log.Printf("POKER: WARNING: Dead sub-pot of %d with no eligible winners", potSize)
+			// Emergency: Give it to the house or leave in pot?
+			// In normally logic, someone is ALWAYS eligible for the first sub-pot.
+		}
+
+		prevThreshold = t
 	}
 
 	room.GameState.Round = "waiting"
@@ -342,6 +400,7 @@ func EndHand(room *models.Room, bm BalanceManager) {
 	for i := range room.GameState.Players {
 		room.GameState.Players[i].Cards = nil
 		room.GameState.Players[i].LastBet = 0
+		room.GameState.Players[i].HandContribution = 0
 		room.GameState.Players[i].CurrentHand = ""
 	}
 }
