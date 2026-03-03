@@ -18,7 +18,7 @@ var target_icons = [] # If set, reel will force these results
 func _ready():
 	for i in range(10):
 		var icon = icon_scene.instantiate()
-		icon.position.y = (i - 4) * icon_height
+		icon.position.y = (i - 2) * icon_height # Starts at -240 (buffer)
 		icon.set_icon(randi() % 6)
 		container.add_child(icon)
 		icons.append(icon)
@@ -39,7 +39,7 @@ func stop():
 
 func _get_icon_at_y(target_y: float):
 	var closest = null
-	var min_dist = 9999.0
+	var min_dist = 999.0
 	for icon in icons:
 		var dist = abs(icon.position.y - target_y)
 		if dist < min_dist:
@@ -47,20 +47,29 @@ func _get_icon_at_y(target_y: float):
 			closest = icon
 	return closest
 
+func normalize_icons():
+	for icon in icons:
+		var y = icon.position.y + 240
+		y = fmod(y, 1200.0)
+		if y < 0: y += 1200.0
+		icon.position.y = (y - 240)
+
 func get_visible_icon_objects():
+	normalize_icons()
 	var visible = []
-	for y in [-240, -120, 0, 120, 240]:
+	for y in [0, 120, 240, 360, 480]:
 		visible.append(_get_icon_at_y(y))
 	return visible
 
 func _kick_tween():
 	speed = 0
+	normalize_icons()
 	
 	# Force targeting if available
-	# Row 0 (-240) to Row 4 (240)
+	# Row 0 (0) to Row 4 (480)
 	if target_icons.size() == 5:
 		for i in range(5):
-			var target_y = -240 + (i * 120)
+			var target_y = i * 120
 			var icon = _get_icon_at_y(target_y)
 			if icon:
 				icon.set_icon(target_icons[i])
@@ -79,7 +88,8 @@ func _kick_tween():
 
 func _on_tween_finished():
 	var results = []
-	for y in [-240, -120, 0, 120, 240]:
+	normalize_icons()
+	for y in [0, 120, 240, 360, 480]:
 		var icon = _get_icon_at_y(y)
 		results.append(icon.type)
 	reel_stopped.emit(results)

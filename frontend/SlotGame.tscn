@@ -66,6 +66,7 @@ var reels_finished = 0
 var game_results = [null, null, null, null, null]
 var shaking = 0.0
 var auth = null
+const ICON_NAMES = [\"CHERRY\", \"LEMON\", \"ORANGE\", \"GRAPE\", \"WATERMELON\", \"SEVEN\"]
 
 var current_bet = 1
 var num_lines = 1
@@ -176,9 +177,13 @@ func _check_wins():
 	var grid = [] # rows[5] -> cols[5]
 	for row in range(5):
 		var row_icons = []
+		var row_names = []
 		for col in range(5):
-			row_icons.append(game_results[col][row])
+			var icon_type = game_results[col][row]
+			row_icons.append(icon_type)
+			row_names.append(ICON_NAMES[icon_type])
 		grid.append(row_icons)
+		print(\"Slot: Row \", row, \": \", row_names)
 	
 	# 5x5 Line Patterns (Comprehensive list for 9 lines)
 	var lines = [
@@ -195,7 +200,10 @@ func _check_wins():
 	
 	var logged_grid = []
 	for c in range(5):
-		logged_grid.append(game_results[c])
+		var col_names = []
+		for type in game_results[c]:
+			col_names.append(ICON_NAMES[type])
+		logged_grid.append(col_names)
 
 	# Collect icon objects for highlighting
 	var icon_grid = [] # rows[5][cols[5]]
@@ -367,6 +375,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 theme_override_constants/separation = 0
 
 [node name="TopNav" type="MarginContainer" parent="MainLayout"]
@@ -442,17 +451,12 @@ mouse_filter = 2
 [node name="Reels" type="Control" parent="MainLayout/ReelDisplay/SlotWindow"]
 unique_name_in_owner = true
 layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -325.0
-offset_top = -300.0
-offset_right = 325.0
-offset_bottom = 300.0
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 
 [node name="Vignette" type="ColorRect" parent="MainLayout/ReelDisplay/SlotWindow"]
 layout_mode = 1
@@ -628,11 +632,11 @@ text = "[center]
 [color=orange]MATCH 5: 150x Bet[/color]
 
 [b]LINES:[/b]
-1: Middle Row
-2: Row 1
-3: Row 3
-4: Top Row
-5: Bottom Row
+1: Middle Row (Row 2)
+2: Inner Top (Row 1)
+3: Inner Bottom (Row 3)
+4: Edge Top (Row 0)
+5: Edge Bottom (Row 4)
 6: Diagonal Down
 7: Diagonal Up
 8: V-Shape
