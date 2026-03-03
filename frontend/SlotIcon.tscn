@@ -35,17 +35,37 @@ void fragment() {
 shader = SubResource("Shader_blur")
 shader_parameter/blur_amount = 0.0
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_win"]
+bg_color = Color(1, 0.84, 0, 0.1)
+border_width_left = 6
+border_width_top = 6
+border_width_right = 6
+border_width_bottom = 6
+border_color = Color(1, 0.9, 0.2, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+expand_margin_left = 4.0
+expand_margin_top = 4.0
+expand_margin_right = 4.0
+expand_margin_bottom = 4.0
+shadow_color = Color(1, 0.8, 0, 0.4)
+shadow_size = 15
+
 [sub_resource type="GDScript" id="GDScript_icon"]
 script/source = "extends Panel
 
 enum IconType { CHERRY, LEMON, ORANGE, PLUM, WATERMELON, SEVEN }
 var type = 0
+var win_tween: Tween
 
 @onready var sprite = %Sprite
+@onready var win_highlight = %WinHighlight
 
 func _ready():
 	custom_minimum_size = Vector2(120, 120)
-	# Removed auto-centering subtraction to let Reel manage positioning precisely
+	win_highlight.hide()
 
 func set_icon(new_type):
 	self.type = new_type
@@ -65,13 +85,26 @@ func set_icon(new_type):
 	else:
 		sprite.texture = load(\"res://assets/slots/seven.png\")
 	
-	# Precisely center sprite in the 120x120 box
 	sprite.position = Vector2(60, 60)
 	sprite.scale = Vector2(0.3, 0.3)
 
 func set_blur(amount: float):
 	if sprite and sprite.material is ShaderMaterial:
 		sprite.material.set_shader_parameter(\"blur_amount\", amount)
+
+func set_winning(active: bool):
+	if active:
+		win_highlight.show()
+		if win_tween: win_tween.kill()
+		win_tween = create_tween().set_loops()
+		win_tween.tween_property(sprite, \"scale\", Vector2(0.38, 0.38), 0.4).set_trans(Tween.TRANS_SINE)
+		win_tween.tween_property(sprite, \"scale\", Vector2(0.3, 0.3), 0.4).set_trans(Tween.TRANS_SINE)
+	else:
+		win_highlight.hide()
+		if win_tween: 
+			win_tween.kill()
+			win_tween = null
+		sprite.scale = Vector2(0.3, 0.3)
 "
 
 [node name="SlotIcon" type="Panel"]
@@ -86,3 +119,14 @@ unique_name_in_owner = true
 material = SubResource("ShaderMaterial_icon")
 position = Vector2(60, 60)
 scale = Vector2(0.3, 0.3)
+
+[node name="WinHighlight" type="Panel" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_win")

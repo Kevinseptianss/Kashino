@@ -192,6 +192,14 @@ func _check_wins():
 	for c in range(5):
 		logged_grid.append(game_results[c])
 
+	# Collect icon objects for highlighting
+	var icon_grid = [] # rows[5][cols[5]]
+	for r in range(5):
+		var row_objs = []
+		for c in range(5):
+			row_objs.append(reels[c].get_visible_icon_objects()[r])
+		icon_grid.append(row_objs)
+
 	for i in range(min(num_lines, lines.size())):
 		var line = lines[i]
 		var line_icons = []
@@ -214,6 +222,11 @@ func _check_wins():
 			var win = current_bet * multiplier
 			total_win += win
 			win_details.append(\"LINE %d: %d MATCHES (C %d)\" % [i+1, matches, win])
+			
+			# Highlight winning icons
+			for col in range(matches):
+				var row = line[col]
+				icon_grid[row][col].set_winning(true)
 	
 	if total_win > 0:
 		result_label.text = \"WIN: C %d!\" % total_win
@@ -578,6 +591,7 @@ offset_right = 300.0
 offset_bottom = 400.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 
 [node name="VBox" type="VBoxContainer" parent="HowToPlayPopup"]
 layout_mode = 1
@@ -586,6 +600,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 theme_override_constants/separation = 20
 
 [node name="Title" type="Label" parent="HowToPlayPopup/VBox"]

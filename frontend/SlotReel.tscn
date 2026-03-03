@@ -27,6 +27,8 @@ func spin():
 	spinning = true
 	target_icons.clear()
 	speed = target_speed
+	for icon in icons:
+		icon.set_winning(false)
 
 func stop_with_target(targets: Array):
 	target_icons = targets
@@ -34,6 +36,11 @@ func stop_with_target(targets: Array):
 
 func stop():
 	spinning = false
+
+func get_visible_icon_objects():
+	var sorted_icons = icons.duplicate()
+	sorted_icons.sort_custom(func(a,b): return a.position.y < b.position.y)
+	return sorted_icons.slice(2, 7) # Returns the 5 visible icons
 
 func _kick_tween():
 	speed = 0
