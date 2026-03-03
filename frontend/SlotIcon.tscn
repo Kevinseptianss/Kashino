@@ -1,4 +1,16 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_box"]
+bg_color = Color(0.1, 0.1, 0.15, 0.5)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.74, 0.58, 1, 0.2)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
 
 [sub_resource type="Shader" id="Shader_blur"]
 code = "shader_type canvas_item;
@@ -24,10 +36,17 @@ shader = SubResource("Shader_blur")
 shader_parameter/blur_amount = 0.0
 
 [sub_resource type="GDScript" id="GDScript_icon"]
-script/source = "extends Sprite2D
+script/source = "extends Panel
 
 enum IconType { CHERRY, LEMON, ORANGE, PLUM, WATERMELON, SEVEN }
 var type = 0
+
+@onready var sprite = %Sprite
+
+func _ready():
+	# Ensure the panel is centered relative to its position set by Reel
+	custom_minimum_size = Vector2(120, 120)
+	position -= custom_minimum_size / 2
 
 func set_icon(new_type):
 	self.type = new_type
@@ -40,20 +59,32 @@ func set_icon(new_type):
 		4: tex_path += \"watermelon.png\"
 		5: tex_path += \"seven.png\"
 	
-	if FileAccess.file_exists(tex_path):
-		texture = load(tex_path)
-	else:
-		texture = load(\"res://assets/slots/seven.png\")
+	if not sprite: await ready
 	
-	# Adjust scale for full-screen portrait
-	scale = Vector2(0.4, 0.4)
+	if FileAccess.file_exists(tex_path):
+		sprite.texture = load(tex_path)
+	else:
+		sprite.texture = load(\"res://assets/slots/seven.png\")
+	
+	# Adjust scale to fit the box
+	sprite.scale = Vector2(0.3, 0.3)
 
 func set_blur(amount: float):
-	if material is ShaderMaterial:
-		material.set_shader_parameter(\"blur_amount\", amount)
+	if sprite and sprite.material is ShaderMaterial:
+		sprite.material.set_shader_parameter(\"blur_amount\", amount)
 "
 
-[node name="SlotIcon" type="Sprite2D"]
-material = SubResource("ShaderMaterial_icon")
-scale = Vector2(0.4, 0.4)
+[node name="SlotIcon" type="Panel"]
+custom_minimum_size = Vector2(120, 120)
+offset_left = -60.0
+offset_top = -60.0
+offset_right = 60.0
+offset_bottom = 60.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_box")
 script = SubResource("GDScript_icon")
+
+[node name="Sprite" type="Sprite2D" parent="."]
+unique_name_in_owner = true
+material = SubResource("ShaderMaterial_icon")
+position = Vector2(60, 60)
+scale = Vector2(0.3, 0.3)

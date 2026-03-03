@@ -1,4 +1,6 @@
-[gd_scene format=3 uid="uid://drdg0utxp4lqf"]
+[gd_scene load_steps=9 format=3 uid="uid://drdg0utxp4lqf"]
+
+[ext_resource type="Texture2D" uid="uid://bg_poker_table" path="res://assets/slots/background_pokertable.png" id="1_bg_res"]
 
 [sub_resource type="GDScript" id="GDScript_poker_table"]
 script/source = "extends Control
@@ -440,14 +442,16 @@ grow_horizontal = 2
 grow_vertical = 2
 script = SubResource("GDScript_poker_table")
 
-[node name="BG" type="ColorRect" parent="." unique_id=1439529066]
+[node name="BG" type="TextureRect" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.04, 0.04, 0.05, 1)
+texture = ExtResource("1_bg_res")
+expand_mode = 1
+stretch_mode = 6
 
 [node name="Table" type="Panel" parent="." unique_id=1551317961]
 custom_minimum_size = Vector2(650, 400)

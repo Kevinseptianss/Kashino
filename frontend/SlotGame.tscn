@@ -67,7 +67,7 @@ var game_results = []
 var shaking = 0.0
 var auth = null
 
-var current_bet = 100
+var current_bet = 1
 var num_lines = 1
 
 func _ready():
@@ -79,7 +79,11 @@ func _ready():
 	_update_bet_ui()
 	%BetMinusBtn.pressed.connect(_on_bet_minus_pressed)
 	%BetPlusBtn.pressed.connect(_on_bet_plus_pressed)
-	%LinesSpinBox.value_changed.connect(_on_lines_changed)
+	%LineMinusBtn.pressed.connect(_on_line_minus_pressed)
+	%LinePlusBtn.pressed.connect(_on_line_plus_pressed)
+	
+	# Initial line guides
+	_update_line_guides()
 	
 	for i in range(5):
 		var reel = preload(\"res://SlotReel.tscn\").instantiate()
@@ -195,21 +199,76 @@ func _check_wins():
 			\"win_amount\": total_win
 		})
 
+var bet_values = [1, 5, 10, 20]
+var bet_index = 0
+
 func _on_bet_minus_pressed():
-	if current_bet > 1:
-		current_bet = max(1, current_bet - 10)
+	if bet_index > 0:
+		bet_index -= 1
+		current_bet = bet_values[bet_index]
 		_update_bet_ui()
 
 func _on_bet_plus_pressed():
-	current_bet += 10
-	_update_bet_ui()
+	if bet_index < bet_values.size() - 1:
+		bet_index += 1
+		current_bet = bet_values[bet_index]
+		_update_bet_ui()
 
-func _on_lines_changed(val):
-	num_lines = int(val)
-	_update_bet_ui()
+func _on_line_minus_pressed():
+	if num_lines > 1:
+		num_lines -= 1
+		_update_bet_ui()
+		_update_line_guides()
+
+func _on_line_plus_pressed():
+	if num_lines < 9:
+		num_lines += 1
+		_update_bet_ui()
+		_update_line_guides()
 
 func _update_bet_ui():
 	%BetInfo.text = str(current_bet)
+	%LinesInfo.text = str(num_lines)
+
+func _update_line_guides():
+	if not has_node(\"%LineGuides\"): return
+	var container = %LineGuides
+	for child in container.get_children():
+		child.queue_free()
+	
+	# Mapping for drawing: grid starts at top-left of Reels container
+	# Reels container is at (-325, -180) approximately (3 * 120 = 360 height)
+	var start_x = %Reels.position.x
+	var start_y = %Reels.position.y
+	
+	var line_defs = [
+		[1,1,1,1,1], # Middle
+		[0,0,0,0,0], # Top
+		[2,2,2,2,2], # Bottom
+		[0,1,2,1,0], # V-shape
+		[2,1,0,1,2], # Inverted V
+		[0,0,1,2,2], # Step Down
+		[2,2,1,0,0], # Step Up
+		[1,0,0,0,1], # Top arc
+		[1,2,2,2,1]  # Bottom arc
+	]
+
+	for i in range(num_lines):
+		var line_def = line_defs[i]
+		var line_node = Line2D.new()
+		line_node.width = 6
+		line_node.default_color = Color.from_hsv(float(i) / 9.0, 0.7, 1.0, 0.4)
+		line_node.begin_cap_mode = Line2D.LINE_CAP_ROUND
+		line_node.end_cap_mode = Line2D.LINE_CAP_ROUND
+		line_node.joint_mode = Line2D.LINE_JOINT_ROUND
+		
+		for col in range(5):
+			var row = line_def[col]
+			var x = start_x + (col * 130) + 60 # Center of 120 icon
+			var y = start_y + (row * 120) + 60 # Center of 120 icon
+			line_node.add_point(Vector2(x, y))
+		
+		container.add_child(line_node)
 
 func _process(delta):
 	if shaking > 0:
@@ -300,6 +359,16 @@ clip_children = 2
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_slot_window")
 
+[node name="LineGuides" type="Control" parent="MainLayout/ReelDisplay/SlotWindow"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
 [node name="Reels" type="Control" parent="MainLayout/ReelDisplay/SlotWindow"]
 unique_name_in_owner = true
 layout_mode = 1
@@ -360,13 +429,29 @@ theme_override_font_sizes/font_size = 14
 text = "LINES"
 horizontal_alignment = 1
 
-[node name="LinesSpinBox" type="SpinBox" parent="MainLayout/BottomControls/VBox/StatusSection/BetControls/LinesSection"]
-unique_name_in_owner = true
+[node name="LinesHBox" type="HBoxContainer" parent="MainLayout/BottomControls/VBox/StatusSection/BetControls/LinesSection"]
 layout_mode = 2
-min_value = 1.0
-max_value = 9.0
-value = 1.0
 alignment = 1
+
+[node name="LineMinusBtn" type="Button" parent="MainLayout/BottomControls/VBox/StatusSection/BetControls/LinesSection/LinesHBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(40, 40)
+layout_mode = 2
+text = "-"
+
+[node name="LinesInfo" type="Label" parent="MainLayout/BottomControls/VBox/StatusSection/BetControls/LinesSection/LinesHBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(60, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "1"
+horizontal_alignment = 1
+
+[node name="LinePlusBtn" type="Button" parent="MainLayout/BottomControls/VBox/StatusSection/BetControls/LinesSection/LinesHBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(40, 40)
+layout_mode = 2
+text = "+"
 
 [node name="BetSection" type="VBoxContainer" parent="MainLayout/BottomControls/VBox/StatusSection/BetControls"]
 layout_mode = 2

@@ -285,40 +285,9 @@ func (h *Hub) broadcastRoomUpdateLocked(action string, room *models.Room) {
 }
 
 func (h *Hub) removePlayerFromAllRoomsLocked(userIDHex string) {
-	for roomID, room := range h.Rooms {
-		found := false
-		newPlayers := make([]models.Player, 0)
-		for _, p := range room.GameState.Players {
-			if p.ID == userIDHex {
-				found = true
-				log.Printf("Removing player %s from room %s", p.Username, roomID)
-
-				// Critical: If it was their turn, "fold" them out before removing
-				// to ensure turn progression and game settlement.
-				if room.GameState.CurrentTurn == userIDHex && room.GameState.Round != "waiting" {
-					poker.HandleAction(room, userIDHex, models.PokerAction{Action: "fold"}, h)
-				}
-				continue
-			}
-			newPlayers = append(newPlayers, p)
-		}
-		if found {
-			room.GameState.Players = newPlayers
-			// If a round was in progress, check if only one active player remains.
-			// If so, end the hand immediately.
-			if room.GameState.Round != "waiting" {
-				activeCount := 0
-				for _, p := range room.GameState.Players {
-					if !p.IsFolded {
-						activeCount++
-					}
-				}
-				if activeCount <= 1 {
-					poker.EndHand(room, h)
-				}
-			}
-			h.broadcastRoomUpdateLocked("room_update", room)
-		}
+	for _, room := range h.Rooms {
+		poker.LeaveGame(room, userIDHex, h)
+		h.broadcastRoomUpdateLocked("room_update", room)
 	}
 }
 

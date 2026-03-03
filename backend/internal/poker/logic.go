@@ -332,3 +332,66 @@ func EndHand(room *models.Room, bm BalanceManager) {
 		room.GameState.Players[i].CurrentHand = ""
 	}
 }
+
+func LeaveGame(room *models.Room, playerID string, bm BalanceManager) {
+	idx := -1
+	var username string
+	for i, p := range room.GameState.Players {
+		if p.ID == playerID {
+			idx = i
+			username = p.Username
+			break
+		}
+	}
+
+	if idx == -1 {
+		return
+	}
+
+	isHandActive := room.GameState.Round != "waiting"
+	isTurn := room.GameState.CurrentTurn == playerID
+
+	if isHandActive {
+		bm.LogPokerEvent(room.ID, room.GameState.ID, "leave", playerID, username, 0, room.GameState.Pot, "Player Left/Stood Up")
+		// Force fold if in hand
+		room.GameState.Players[idx].IsFolded = true
+		room.GameState.Players[idx].HasActed = true
+		room.GameState.Players[idx].InGame = false
+
+		if isTurn {
+			nextTurn(room, bm)
+		}
+	}
+
+	// Adjust DealerIdx
+	// If the removed player's index is <= DealerIdx, we need to shift DealerIdx
+	if idx <= room.GameState.DealerIdx && room.GameState.DealerIdx > 0 {
+		room.GameState.DealerIdx--
+	} else if idx <= room.GameState.DealerIdx && room.GameState.DealerIdx == 0 {
+		// If dealer was at 0 and we remove 0, dealer moves to the new end of slice (handled by modulo usually)
+		if len(room.GameState.Players) > 1 {
+			room.GameState.DealerIdx = len(room.GameState.Players) - 2
+			if room.GameState.DealerIdx < 0 {
+				room.GameState.DealerIdx = 0
+			}
+		} else {
+			room.GameState.DealerIdx = 0
+		}
+	}
+
+	// Remove from slice
+	room.GameState.Players = append(room.GameState.Players[:idx], room.GameState.Players[idx+1:]...)
+
+	// Check if hand should end
+	if isHandActive {
+		activeCount := 0
+		for _, p := range room.GameState.Players {
+			if !p.IsFolded && p.InGame {
+				activeCount++
+			}
+		}
+		if activeCount <= 1 {
+			EndHand(room, bm)
+		}
+	}
+}
