@@ -1,6 +1,6 @@
 [gd_scene load_steps=9 format=3 uid="uid://drdg0utxp4lqf"]
 
-[ext_resource type="Texture2D" uid="uid://bg_poker_table" path="res://assets/slots/background_pokertable.png" id="1_bg_res"]
+[ext_resource type="Texture2D" path="res://assets/slots/background_pokertable.png" id="1_bg_res"]
 
 [sub_resource type="GDScript" id="GDScript_poker_table"]
 script/source = "extends Control
