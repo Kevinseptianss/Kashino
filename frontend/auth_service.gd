@@ -68,7 +68,8 @@ func _process(_delta):
 			_set_online(false)
 			# Do not auto-reconnect if not logged in
 			if current_user:
-				_connect_to_ws()
+				print("AuthService: Connection lost, retrying in 2 seconds...")
+				get_tree().create_timer(2.0).timeout.connect(_connect_to_ws)
 
 func _set_online(online):
 	ws_connected = online
