@@ -3,6 +3,7 @@ package poker
 import (
 	"fmt"
 	"kashino-backend/internal/models"
+	"log"
 	"math/rand"
 	"time"
 )
@@ -30,9 +31,9 @@ func Shuffle(deck []models.Card) {
 var currentDeck []models.Card
 
 type BalanceManager interface {
-	UpdateBalance(userID string, amount float64, source string)
+	UpdateBalance(userID string, amount int64, source string)
 	NotifyRoomUpdate(action string, room *models.Room)
-	LogPokerEvent(roomID string, handID string, event string, playerID string, username string, amount float64, pot float64, details string)
+	LogPokerEvent(roomID string, handID string, event string, playerID string, username string, amount int64, pot int64, details string)
 }
 
 func StartHand(room *models.Room, bm BalanceManager) {
@@ -58,6 +59,7 @@ func StartHand(room *models.Room, bm BalanceManager) {
 	room.GameState.Round = "pre-flop"
 	room.GameState.Community = nil
 	room.GameState.Pot = 0
+	room.GameState.LastWinners = nil
 
 	currentDeck = NewDeck()
 	Shuffle(currentDeck)
@@ -112,8 +114,10 @@ func updateHandRanks(room *models.Room) {
 
 func HandleAction(room *models.Room, playerID string, action models.PokerAction, bm BalanceManager) {
 	if room.GameState.CurrentTurn != playerID {
+		log.Printf("POKER: Action rejected. Turn is %s, but %s tried to act", room.GameState.CurrentTurn, playerID)
 		return
 	}
+	log.Printf("POKER: Handling action '%s' (amt %d) from %s", action.Action, action.Amount, playerID)
 
 	switch action.Action {
 	case "fold":
@@ -126,10 +130,10 @@ func HandleAction(room *models.Room, playerID string, action models.PokerAction,
 			}
 		}
 	case "check", "call":
-		// Find max bet at table
-		maxBet := 0.0
+		// Find max bet among active, non-folded players
+		var maxBet int64 = 0
 		for _, p := range room.GameState.Players {
-			if p.LastBet > maxBet {
+			if p.InGame && !p.IsFolded && p.LastBet > maxBet {
 				maxBet = p.LastBet
 			}
 		}
@@ -140,7 +144,7 @@ func HandleAction(room *models.Room, playerID string, action models.PokerAction,
 				if diff > 0 {
 					room.GameState.Players[i].Balance -= diff
 					room.GameState.Pot += diff
-					room.GameState.Players[i].LastBet += diff
+					room.GameState.Players[i].LastBet = maxBet
 					bm.UpdateBalance(playerID, -diff, "poker_bet")
 					bm.LogPokerEvent(room.ID, room.GameState.ID, action.Action, playerID, room.GameState.Players[i].Username, diff, room.GameState.Pot, action.Action)
 				} else {
@@ -159,16 +163,19 @@ func HandleAction(room *models.Room, playerID string, action models.PokerAction,
 					room.GameState.Pot += diff
 					room.GameState.Players[i].LastBet += diff
 					bm.UpdateBalance(playerID, -diff, "poker_bet")
-					bm.LogPokerEvent(room.ID, room.GameState.ID, "raise", playerID, room.GameState.Players[i].Username, diff, room.GameState.Pot, "Raise to "+fmt.Sprintf("%.0f", action.Amount))
-				}
 
-				// When someone raises, everyone else must act again
-				for j := range room.GameState.Players {
-					if room.GameState.Players[j].ID == playerID {
-						room.GameState.Players[j].HasActed = true
-					} else if room.GameState.Players[j].InGame && !room.GameState.Players[j].IsFolded {
-						room.GameState.Players[j].HasActed = false
+					// When someone raises, everyone else must act again
+					bm.LogPokerEvent(room.ID, room.GameState.ID, "raise", playerID, room.GameState.Players[i].Username, diff, room.GameState.Pot, "Raise to "+fmt.Sprintf("%d", action.Amount))
+					for j := range room.GameState.Players {
+						if room.GameState.Players[j].ID == playerID {
+							room.GameState.Players[j].HasActed = true
+						} else if room.GameState.Players[j].InGame && !room.GameState.Players[j].IsFolded {
+							room.GameState.Players[j].HasActed = false
+						}
 					}
+				} else {
+					log.Printf("POKER: Pseudo-raise from %s (diff %d <= 0)", playerID, diff)
+					room.GameState.Players[i].HasActed = true
 				}
 				break
 			}
@@ -194,7 +201,7 @@ func nextTurn(room *models.Room, bm BalanceManager) {
 	}
 
 	// Check if betting is settled
-	maxBet := 0.0
+	var maxBet int64 = 0
 	for _, p := range room.GameState.Players {
 		if p.InGame && !p.IsFolded && p.LastBet > maxBet {
 			maxBet = p.LastBet
@@ -204,7 +211,9 @@ func nextTurn(room *models.Room, bm BalanceManager) {
 	allActedAndMatched := true
 	for _, p := range room.GameState.Players {
 		if p.InGame && !p.IsFolded {
-			if !p.HasActed || p.LastBet != maxBet {
+			diff := maxBet - p.LastBet
+			if !p.HasActed || diff > 0 {
+				log.Printf("POKER: Round NOT settled. Player %s: HasActed=%t, LastBet=%d, MaxBet=%d, Diff=%d", p.Username, p.HasActed, p.LastBet, maxBet, diff)
 				allActedAndMatched = false
 				break
 			}
@@ -212,6 +221,7 @@ func nextTurn(room *models.Room, bm BalanceManager) {
 	}
 
 	if allActedAndMatched {
+		log.Printf("POKER: All acted and matched. Advancing from %s", room.GameState.Round)
 		advanceRound(room, bm)
 		return
 	}
@@ -229,8 +239,9 @@ func nextTurn(room *models.Room, bm BalanceManager) {
 		nextIdx := (currIdx + i) % n
 		p := &room.GameState.Players[nextIdx]
 		if p.InGame && !p.IsFolded {
-			// If betting is not settled, and this player hasn't matched or hasn't acted, it's their turn
-			if !p.HasActed || p.LastBet != maxBet {
+			diff := maxBet - p.LastBet
+			if !p.HasActed || diff > 0 {
+				log.Printf("POKER: Next turn assigned to %s (Idx %d). HasActed=%t, Diff=%d", p.Username, nextIdx, p.HasActed, diff)
 				room.GameState.CurrentTurn = p.ID
 				return
 			}
@@ -253,9 +264,11 @@ func advanceRound(room *models.Room, bm BalanceManager) {
 		room.GameState.Round = "river"
 		room.GameState.Community = append(room.GameState.Community, currentDeck[24])
 	case "river":
+		log.Printf("POKER: Showdown! Pot: %d", room.GameState.Pot)
 		EndHand(room, bm)
 		return
 	}
+	log.Printf("POKER: Round advanced to %s. Pot: %d, Community: %d", room.GameState.Round, room.GameState.Pot, len(room.GameState.Community))
 
 	updateHandRanks(room)
 
@@ -306,7 +319,7 @@ func EndHand(room *models.Room, bm BalanceManager) {
 	room.GameState.LastWinners = nil
 	if len(winners) > 0 {
 		// Divide pot among winners (handle split pot)
-		share := room.GameState.Pot / float64(len(winners))
+		share := room.GameState.Pot / int64(len(winners))
 		for _, w := range winners {
 			w.Balance += share
 			bm.UpdateBalance(w.ID, share, "poker_win")

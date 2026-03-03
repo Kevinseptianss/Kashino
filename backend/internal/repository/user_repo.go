@@ -60,7 +60,7 @@ func (r *UserRepository) FindByUsername(ctx context.Context, username string) (*
 	return &user, nil
 }
 
-func (r *UserRepository) UpdateBalance(ctx context.Context, userID primitive.ObjectID, amount float64, source string) error {
+func (r *UserRepository) UpdateBalance(ctx context.Context, userID primitive.ObjectID, amount int64, source string) error {
 	transaction := models.Transaction{
 		Amount:    amount,
 		Source:    source,
@@ -78,7 +78,7 @@ func (r *UserRepository) UpdateBalance(ctx context.Context, userID primitive.Obj
 	return err
 }
 
-func (r *UserRepository) GetBalance(ctx context.Context, userID primitive.ObjectID) (float64, error) {
+func (r *UserRepository) GetBalance(ctx context.Context, userID primitive.ObjectID) (int64, error) {
 	var user models.User
 	err := r.collection.FindOne(ctx, bson.M{"_id": userID}).Decode(&user)
 	if err != nil {

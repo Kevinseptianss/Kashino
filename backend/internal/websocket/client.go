@@ -154,8 +154,8 @@ func (c *Client) handleAction(msg WSMessage) {
 			return
 		}
 		var data struct {
-			Amount float64 `json:"amount"`
-			Source string  `json:"source"`
+			Amount int64  `json:"amount"`
+			Source string `json:"source"`
 		}
 		if err := json.Unmarshal(msg.Data, &data); err != nil {
 			c.sendError("update_balance", "Invalid data")
@@ -240,10 +240,10 @@ func (c *Client) handleAction(msg WSMessage) {
 
 	case "slot_log":
 		var slotData struct {
-			Bet       float64 `json:"bet"`
+			Bet       int64   `json:"bet"`
 			Lines     int     `json:"lines"`
 			Result    [][]int `json:"result"`
-			WinAmount float64 `json:"win_amount"`
+			WinAmount int64   `json:"win_amount"`
 		}
 		if err := json.Unmarshal(msg.Data, &slotData); err != nil {
 			c.sendError("slot_log", "Invalid slot log data")

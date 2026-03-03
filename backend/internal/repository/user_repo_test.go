@@ -44,6 +44,6 @@ func TestUserRepository(t *testing.T) {
 	}
 
 	if balance != 1000 {
-		t.Errorf("Expected balance 1000, got %f", balance)
+		t.Errorf("Expected balance 1000, got %d", balance)
 	}
 }

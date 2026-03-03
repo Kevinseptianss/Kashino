@@ -28,7 +28,7 @@ type Hub struct {
 
 type balanceUpdateMsg struct {
 	UserID  primitive.ObjectID
-	Balance float64
+	Balance int64
 }
 
 func NewHub(userRepo *repository.UserRepository, pokerRepo *repository.PokerRepository) *Hub {
@@ -291,7 +291,7 @@ func (h *Hub) removePlayerFromAllRoomsLocked(userIDHex string) {
 	}
 }
 
-func (h *Hub) UpdateBalance(userID string, amount float64, source string) {
+func (h *Hub) UpdateBalance(userID string, amount int64, source string) {
 	objID, _ := primitive.ObjectIDFromHex(userID)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -313,7 +313,7 @@ func (h *Hub) UpdateBalance(userID string, amount float64, source string) {
 	}
 }
 
-func (h *Hub) LogPokerEvent(roomID string, handID string, event string, playerID string, username string, amount float64, pot float64, details string) {
+func (h *Hub) LogPokerEvent(roomID string, handID string, event string, playerID string, username string, amount int64, pot int64, details string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -337,7 +337,7 @@ func (h *Hub) LogPokerEvent(roomID string, handID string, event string, playerID
 	h.PokerRepo.LogEvent(ctx, history)
 }
 
-func (h *Hub) LogSlotEvent(userID string, username string, bet float64, lines int, result [][]int, win float64) {
+func (h *Hub) LogSlotEvent(userID string, username string, bet int64, lines int, result [][]int, win int64) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 

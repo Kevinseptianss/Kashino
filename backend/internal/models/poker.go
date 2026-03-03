@@ -8,30 +8,30 @@ type Card struct {
 }
 
 type Player struct {
-	ID          string  `json:"id"`
-	Username    string  `json:"username"`
-	Balance     float64 `json:"balance"`
-	Cards       []Card  `json:"cards,omitempty"`
-	Position    int     `json:"position"` // 0-4
-	LastBet     float64 `json:"last_bet"`
-	IsFolded    bool    `json:"is_folded"`
-	InGame      bool    `json:"in_game"` // Sitting vs Playing
-	HasActed    bool    `json:"has_acted"`
-	CurrentHand string  `json:"current_hand,omitempty"`
+	ID          string `json:"id"`
+	Username    string `json:"username"`
+	Balance     int64  `json:"balance"`
+	Cards       []Card `json:"cards,omitempty"`
+	Position    int    `json:"position"` // 0-4
+	LastBet     int64  `json:"last_bet"`
+	IsFolded    bool   `json:"is_folded"`
+	InGame      bool   `json:"in_game"` // Sitting vs Playing
+	HasActed    bool   `json:"has_acted"`
+	CurrentHand string `json:"current_hand,omitempty"`
 }
 
 type WinnerInfo struct {
-	UserID          string  `json:"user_id"`
-	Username        string  `json:"username"`
-	Amount          float64 `json:"amount"`
-	HandDescription string  `json:"hand_description"`
+	UserID          string `json:"user_id"`
+	Username        string `json:"username"`
+	Amount          int64  `json:"amount"`
+	HandDescription string `json:"hand_description"`
 }
 
 type GameState struct {
 	ID          string       `json:"id"`
 	Players     []Player     `json:"players"`
 	Community   []Card       `json:"community"`
-	Pot         float64      `json:"pot"`
+	Pot         int64        `json:"pot"`
 	CurrentTurn string       `json:"current_turn"`
 	Round       string       `json:"round"` // "waiting", "pre-flop", "flop", "turn", "river", "showdown"
 	DealerIdx   int          `json:"dealer_idx"`
@@ -43,14 +43,14 @@ type Room struct {
 	Name       string    `json:"name"`
 	GameState  GameState `json:"game_state"`
 	MaxPlayers int       `json:"max_players"`
-	SmallBlind float64   `json:"small_blind"`
-	BigBlind   float64   `json:"big_blind"`
+	SmallBlind int64     `json:"small_blind"`
+	BigBlind   int64     `json:"big_blind"`
 }
 
 type PokerAction struct {
-	Action string  `json:"action"` // "sit", "check", "call", "raise", "fold"
-	Amount float64 `json:"amount,omitempty"`
-	Seat   int     `json:"seat,omitempty"`
+	Action string `json:"action"` // "sit", "check", "call", "raise", "fold"
+	Amount int64  `json:"amount,omitempty"`
+	Seat   int    `json:"seat,omitempty"`
 }
 
 type PokerHistory struct {
@@ -60,8 +60,8 @@ type PokerHistory struct {
 	Event     string             `bson:"event" json:"event"` // "start", "action", "win", "fold"
 	PlayerID  string             `bson:"player_id,omitempty" json:"player_id,omitempty"`
 	Username  string             `bson:"username,omitempty" json:"username,omitempty"`
-	Amount    float64            `bson:"amount,omitempty" json:"amount,omitempty"`
-	Pot       float64            `bson:"pot" json:"pot"`
+	Amount    int64              `bson:"amount,omitempty" json:"amount,omitempty"`
+	Pot       int64              `bson:"pot" json:"pot"`
 	Cards     []Card             `bson:"cards,omitempty" json:"cards,omitempty"`
 	Community []Card             `bson:"community,omitempty" json:"community,omitempty"`
 	Details   string             `bson:"details,omitempty" json:"details,omitempty"`
@@ -72,9 +72,9 @@ type SlotHistory struct {
 	ID        primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 	UserID    string             `bson:"user_id" json:"user_id"`
 	Username  string             `bson:"username" json:"username"`
-	Bet       float64            `bson:"bet" json:"bet"`
+	Bet       int64              `bson:"bet" json:"bet"`
 	Lines     int                `bson:"lines" json:"lines"`
 	Result    [][]int            `bson:"result" json:"result"` // 5x3 grid or similar
-	WinAmount float64            `bson:"win_amount" json:"win_amount"`
+	WinAmount int64              `bson:"win_amount" json:"win_amount"`
 	Timestamp primitive.DateTime `bson:"timestamp" json:"timestamp"`
 }

@@ -10,6 +10,7 @@ var auth = null
 var current_room = null
 var _last_room = null
 var _turn_tween: Tween = null
+var _dealer_tween: Tween = null
 
 # Card animation state
 var _animate_next_cards: bool = false
@@ -33,6 +34,8 @@ var _card_animation_index: int = 0
 @onready var fireworks = %Fireworks
 @onready var turn_highlight = %TurnHighlight
 @onready var dealer_button = %DealerButton
+@onready var user_name_label = %UserNameLabel
+@onready var user_balance_label = %UserBalanceLabel
 
 func _ready():
 	turn_highlight.hide()
@@ -180,6 +183,10 @@ func _refresh_ui():
 	pot_label.text = \"POT: C \" + str(int(current_room[\"game_state\"][\"pot\"]))
 	info_label.text = current_room[\"name\"] + \" - \" + current_room[\"game_state\"][\"round\"].to_upper() + \" (\" + str(int(current_room[\"small_blind\"])) + \"/\" + str(int(current_room[\"big_blind\"])) + \")\"
 	
+	if auth and auth.current_user:
+		user_name_label.text = auth.current_user.get(\"username\", \"\")
+		user_balance_label.text = \"C \" + str(int(auth.current_user.get(\"balance\", 0)))
+	
 	var winners = current_room[\"game_state\"].get(\"last_winners\", [])
 	if winners == null: winners = []
 	if current_room[\"game_state\"][\"round\"] == \"waiting\" and winners.size() > 0:
@@ -259,7 +266,7 @@ func _refresh_ui():
 						var card = preload(\"res://PokerCard.tscn\").instantiate()
 						card_hbox.add_child(card)
 						if player_cards.size() > j:
-							if player[\"id\"] == auth.current_user[\"id\"] or current_room[\"game_state\"][\"round\"] == \"showdown\" or is_waiting:
+							if player[\"id\"] == auth.current_user[\"id\"] or current_room[\"game_state\"][\"round\"] == \"showdown\" or current_room[\"game_state\"][\"round\"] == \"waiting\":
 								card.set_card(player_cards[j][\"suit\"], player_cards[j][\"value\"])
 							else:
 								card.set_back()
@@ -272,12 +279,17 @@ func _refresh_ui():
 						tween.tween_property(card, \"modulate:a\", 1.0, 0.2)
 						tween.tween_property(card, \"scale\", Vector2.ONE, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 						await get_tree().create_timer(0.2).timeout
-				elif current_card_count == target_count and (is_waiting or current_room[\"game_state\"][\"round\"] == \"showdown\"):
-					# Reveal existing cards at showdown or end of hand
+				elif current_card_count == target_count:
+					# Always try to refresh card values if we have them
 					for j in range(current_card_count):
 						var card = card_hbox.get_child(j)
 						if player_cards.size() > j:
-							card.set_card(player_cards[j][\"suit\"], player_cards[j][\"value\"])
+							if player[\"id\"] == auth.current_user[\"id\"] or current_room[\"game_state\"][\"round\"] == \"showdown\" or is_waiting:
+								card.set_card(player_cards[j][\"suit\"], player_cards[j][\"value\"])
+							else:
+								card.set_back()
+						else:
+							card.set_back()
 		else:
 			seat.get_node(\"Label\").text = \"Empty\"
 			seat.get_node(\"SitBtn\").visible = not is_seated
@@ -285,7 +297,10 @@ func _refresh_ui():
 			rank_label.hide()
 			for child in card_hbox.get_children(): child.queue_free()
 	
-	if not found_turn: turn_highlight.hide()
+	if not found_turn:
+		var t = create_tween()
+		t.tween_property(turn_highlight, \"modulate:a\", 0.0, 0.2)
+		t.finished.connect(func(): turn_highlight.hide())
 
 	# Dealer Button
 	var dealer_idx = current_room[\"game_state\"].get(\"dealer_idx\", -1)
@@ -293,8 +308,26 @@ func _refresh_ui():
 		var d_player = players[dealer_idx]
 		var d_seat_idx = d_player[\"position\"]
 		dealer_button.show()
-		var dealer_target = seats[d_seat_idx].global_position + Vector2(100, 20)
-		dealer_button.global_position = dealer_target
+		
+		# Define offsets to move button TOWARDS table center for each seat
+		# Seats are ordered 0-4 (Bottom, Left, TopLeft, TopRight, Right)
+		var offsets = [
+			Vector2(50, -40),   # Seat 0 (Bottom) -> Up
+			Vector2(140, 50),   # Seat 1 (Left) -> Right
+			Vector2(130, 130),  # Seat 2 (Top Left) -> Down-Right
+			Vector2(-20, 130),  # Seat 3 (Top Right) -> Down-Left
+			Vector2(-30, 50)    # Seat 4 (Right) -> Left
+		]
+		
+		var target_offset = Vector2(100, 20) # Fallback
+		if d_seat_idx >= 0 and d_seat_idx < offsets.size():
+			target_offset = offsets[d_seat_idx]
+			
+		var dealer_target = seats[d_seat_idx].global_position + target_offset
+		
+		if _dealer_tween: _dealer_tween.kill()
+		_dealer_tween = create_tween()
+		_dealer_tween.tween_property(dealer_button, \"global_position\", dealer_target, 0.5).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	else:
 		dealer_button.hide()
 
@@ -347,7 +380,12 @@ func _refresh_ui():
 
 func _update_turn_highlight(seat_idx):
 	if _turn_tween: _turn_tween.kill()
-	turn_highlight.show()
+	
+	if not turn_highlight.visible:
+		turn_highlight.modulate.a = 0
+		turn_highlight.show()
+		create_tween().tween_property(turn_highlight, \"modulate:a\", 1.0, 0.2)
+	
 	var target_pos = seats[seat_idx].global_position - Vector2(10, 30)
 	
 	# Move to seat and pulse
@@ -551,6 +589,24 @@ layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.8, 0.4, 1)
 text = "STAND UP"
 
+[node name="UserBox" type="HBoxContainer" parent="Header/HBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="UserNameLabel" type="Label" parent="Header/HBox/UserBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.8, 0.4, 1)
+theme_override_font_sizes/font_size = 18
+text = "Username"
+
+[node name="UserBalanceLabel" type="Label" parent="Header/HBox/UserBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 1, 0, 1)
+theme_override_font_sizes/font_size = 18
+text = "C 0"
+
 [node name="InfoLabel" type="Label" parent="Header/HBox" unique_id=1019385258]
 unique_name_in_owner = true
 layout_mode = 2
@@ -586,9 +642,9 @@ anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -60.0
-offset_top = 220.0
+offset_top = 260.0
 offset_right = 60.0
-offset_bottom = 370.0
+offset_bottom = 410.0
 grow_horizontal = 2
 grow_vertical = 2
 alignment = 1
