@@ -13,6 +13,7 @@ var speed = 0.0
 var target_speed = 3000.0
 var icon_scene = preload(\"res://SlotIcon.tscn\")
 var icon_height = 120
+var target_icons = [] # If set, reel will force these results
 
 func _ready():
 	for i in range(10):
@@ -24,15 +25,22 @@ func _ready():
 
 func spin():
 	spinning = true
+	target_icons.clear()
 	speed = target_speed
+
+func stop_with_target(targets: Array):
+	target_icons = targets
+	spinning = false
 
 func stop():
 	spinning = false
 
 func _kick_tween():
 	speed = 0
+	# Snap positions to nearest 120
 	for icon in icons:
 		icon.set_blur(0.0)
+		icon.position.y = round(icon.position.y / icon_height) * icon_height
 	
 	var tween = create_tween()
 	tween.set_trans(Tween.TRANS_ELASTIC)
@@ -44,12 +52,10 @@ func _kick_tween():
 
 func _on_tween_finished():
 	var results = []
-	# Collect types for 5 rows (based on positions)
-	# We sort icons by Y position to find relevant ones
 	var sorted_icons = icons.duplicate()
 	sorted_icons.sort_custom(func(a,b): return a.position.y < b.position.y)
 	
-	for i in range(2, 7): # Indices 2,3,4,5,6 are the visible 5
+	for i in range(2, 7): # Visible 5
 		results.append(sorted_icons[i].type)
 	reel_stopped.emit(results)
 
@@ -62,7 +68,12 @@ func _process(delta):
 			
 			if icon.position.y > icon_height * 5:
 				icon.position.y -= icon_height * 10
-				icon.set_icon(randi() % 6)
+				if target_icons.size() > 0 and not spinning:
+					# Use pre-determined icons when stopping
+					# First recycled icon becomes Row 0, then Row 1, etc.
+					icon.set_icon(target_icons.pop_front())
+				else:
+					icon.set_icon(randi() % 6)
 		
 		if not spinning:
 			speed = lerp(speed, 0.0, delta * 4.0)

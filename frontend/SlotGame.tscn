@@ -112,10 +112,47 @@ func _on_spin_pressed():
 	result_label.text = \"\"
 	spin_btn.disabled = true
 	
+	# Biased Win Rate Logic (60% Win / 40% Loss)
+	var is_win = randf() < 0.6
+	var targets = [] # Array[5] of Array[5] (columns containing 5 target icons)
+	
+	# Initial random grid
+	for i in range(5):
+		var col = []
+		for j in range(5): col.append(randi() % 6)
+		targets.append(col)
+	
+	if is_win:
+		# Force at least one win on a random active line
+		var active_lines = [
+			[2,2,2,2,2], [1,1,1,1,1], [3,3,3,3,3], [0,0,0,0,0], [4,4,4,4,4],
+			[0,1,2,3,4], [4,3,2,1,0], [0,1,2,1,0], [4,3,2,3,4]
+		]
+		var line_idx = randi() % num_lines
+		var pattern = active_lines[line_idx]
+		var icon_type = randi() % 6
+		var match_count = 3 + (randi() % 3) # 3, 4, or 5
+		for col in range(match_count):
+			targets[col][pattern[col]] = icon_type
+	
 	for i in range(reels.size()):
-		var reel = reels[i]
-		get_tree().create_timer(i * 0.15).timeout.connect(reel.spin)
-		get_tree().create_timer(2.0 + i * 0.4).timeout.connect(reel.stop)
+		reels[i].spin()
+		# Staggered start
+		await get_tree().create_timer(0.15).timeout
+	
+	# Spin duration
+	await get_tree().create_timer(1.5).timeout
+	
+	for i in range(reels.size()):
+		reels[i].stop_with_target(targets[i])
+		# Staggered stop
+		await get_tree().create_timer(0.3).timeout
+
+func _on_how_to_play_pressed():
+	%HowToPlayPopup.show()
+
+func _on_close_help_pressed():
+	%HowToPlayPopup.hide()
 
 func _on_reel_stopped(results):
 	reels_finished += 1
@@ -322,12 +359,19 @@ theme_override_constants/margin_bottom = 20
 
 [node name="HBox" type="HBoxContainer" parent="MainLayout/TopNav"]
 layout_mode = 2
+theme_override_constants/separation = 20
 
 [node name="ExitBtn" type="Button" parent="MainLayout/TopNav/HBox"]
 custom_minimum_size = Vector2(100, 50)
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
 text = "EXIT"
+
+[node name="HowToPlayBtn" type="Button" parent="MainLayout/TopNav/HBox"]
+custom_minimum_size = Vector2(150, 50)
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "HOW TO PLAY"
 
 [node name="Spacer" type="Control" parent="MainLayout/TopNav/HBox"]
 layout_mode = 2
@@ -519,5 +563,64 @@ scale_amount_curve = SubResource("Curve_particles")
 color = Color(1, 0.84, 0, 1)
 color_ramp = SubResource("Gradient_particles")
 
+[node name="HowToPlayPopup" type="Panel" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -300.0
+offset_top = -400.0
+offset_right = 300.0
+offset_bottom = 400.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBox" type="VBoxContainer" parent="HowToPlayPopup"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 20
+
+[node name="Title" type="Label" parent="HowToPlayPopup/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+text = "PAYTABLE & RULES"
+horizontal_alignment = 1
+
+[node name="Info" type="RichTextLabel" parent="HowToPlayPopup/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+bbcode_enabled = true
+text = "[center]
+[color=gold]MATCH 3: 5x Bet[/color]
+[color=cyan]MATCH 4: 25x Bet[/color]
+[color=orange]MATCH 5: 150x Bet[/color]
+
+[b]LINES:[/b]
+1: Middle Row
+2: Row 1
+3: Row 3
+4: Top Row
+5: Bottom Row
+6: Diagonal Down
+7: Diagonal Up
+8: V-Shape
+9: Inverted V
+[/center]"
+
+[node name="CloseHelpBtn" type="Button" parent="HowToPlayPopup/VBox"]
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
+text = "CLOSE"
+
 [connection signal="pressed" from="MainLayout/TopNav/HBox/ExitBtn" to="." method="_on_back_pressed"]
+[connection signal="pressed" from="MainLayout/TopNav/HBox/HowToPlayBtn" to="." method="_on_how_to_play_pressed"]
+[connection signal="pressed" from="HowToPlayPopup/VBox/CloseHelpBtn" to="." method="_on_close_help_pressed"]
 [connection signal="pressed" from="MainLayout/BottomControls/VBox/SpinBtn" to="." method="_on_spin_pressed"]

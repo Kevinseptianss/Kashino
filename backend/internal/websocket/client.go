@@ -250,7 +250,7 @@ func (c *Client) handleAction(msg WSMessage) {
 			return
 		}
 		c.Hub.LogSlotEvent(c.UserID.Hex(), c.ID, slotData.Bet, slotData.Lines, slotData.Result, slotData.WinAmount)
-		c.sendSuccess("slot_log", nil)
+		c.sendSuccess("slot_log", slotData)
 
 	default:
 		log.Printf("Unknown action: %s", msg.Action)
