@@ -1,4 +1,4 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bg"]
 bg_color = Color(0.05, 0.1, 0.05, 1)
@@ -21,6 +21,20 @@ corner_radius_bottom_left = 10
 expand_margin_left = 5.0
 expand_margin_right = 5.0
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_highlight"]
+bg_color = Color(1, 1, 1, 0)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(1, 0.8, 0, 1)
+corner_radius_top_left = 15
+corner_radius_top_right = 15
+corner_radius_bottom_right = 15
+corner_radius_bottom_left = 15
+shadow_color = Color(1, 0.8, 0, 0.5)
+shadow_size = 15
+
 [sub_resource type="Curve" id="Curve_fireworks"]
 _data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
 point_count = 2
@@ -35,6 +49,8 @@ script/source = "extends Control
 var room_id = \"\"
 var auth = null
 var current_room = null
+var _last_room = null
+var _turn_tween: Tween = null
 
 @onready var community_container = %CommunityCards
 @onready var pot_label = %PotLabel
@@ -52,8 +68,10 @@ var current_room = null
 @onready var bet_slider = %BetSlider
 @onready var bet_label = %BetValueLabel
 @onready var fireworks = %Fireworks
+@onready var turn_highlight = %TurnHighlight
 
 func _ready():
+	turn_highlight.hide()
 	if has_node(\"/root/AuthService\"):
 		auth = get_node(\"/root/AuthService\")
 		auth.player_sat.connect(_on_player_sat)
@@ -81,15 +99,74 @@ func _on_bet_slider_changed(val):
 
 func _on_room_update(room_data):
 	if room_data.get(\"id\") != room_id: return
-	print(\"PokerTable: Room update received for \", room_id)
 	current_room = room_data
+	_process_animations(room_data)
 	_refresh_ui()
+	_last_room = room_data.duplicate(true)
 
 func _on_player_sat(room_data):
 	if room_data.get(\"id\") != room_id: return
-	print(\"PokerTable: Player sat in \", room_id)
 	current_room = room_data
 	_refresh_ui()
+	_last_room = room_data.duplicate(true)
+
+func _process_animations(new_room):
+	if not _last_room: return
+	
+	var old_state = _last_room.get(\"game_state\", {})
+	var new_state = new_room.get(\"game_state\", {})
+	
+	# 1. Detect Actions and Play Popups
+	for i in range(new_state.get(\"players\", []).size()):
+		var p_new = new_state[\"players\"][i]
+		var p_old = null
+		for op in old_state.get(\"players\", []):
+			if op[\"id\"] == p_new[\"id\"]:
+				p_old = op
+				break
+		
+		if p_old:
+			var seat_idx = p_new[\"position\"]
+			# Detect Fold
+			if p_new[\"is_folded\"] and not p_old[\"is_folded\"]:
+				_spawn_popup(seat_idx, \"FOLD\", Color.RED)
+			# Detect Check/Call/Raise (LastBet increased)
+			elif p_new[\"last_bet\"] > p_old[\"last_bet\"]:
+				var diff = p_new[\"last_bet\"] - p_old[\"last_bet\"]
+				if p_old[\"last_bet\"] == 0 and new_state[\"round\"] != \"pre-flop\":
+					_spawn_popup(seat_idx, \"BET \" + str(int(p_new[\"last_bet\"])), Color.GREEN)
+				else:
+					_spawn_popup(seat_idx, \"RAISE \" + str(int(p_new[\"last_bet\"])), Color.ORANGE)
+				_animate_chips(seat_idx)
+
+func _spawn_popup(seat_idx, text, color):
+	var label = Label.new()
+	label.text = text
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.add_theme_color_override(\"font_color\", color)
+	label.add_theme_font_size_override(\"font_size\", 24)
+	label.add_theme_constant_override(\"outline_size\", 4)
+	add_child(label)
+	
+	var start_pos = seats[seat_idx].global_position + Vector2(60, 0)
+	label.global_position = start_pos
+	
+	var tween = create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(label, \"global_position\", start_pos + Vector2(0, -100), 1.0)
+	tween.tween_property(label, \"modulate:a\", 0.0, 1.0).set_delay(0.5)
+	tween.chain().finished.connect(label.queue_free)
+
+func _animate_chips(seat_idx):
+	var chip = ColorRect.new()
+	chip.custom_minimum_size = Vector2(20, 20)
+	chip.color = Color.GOLD
+	add_child(chip)
+	chip.global_position = seats[seat_idx].global_position + Vector2(60, 50)
+	
+	var tween = create_tween()
+	tween.tween_property(chip, \"global_position\", pot_label.global_position + Vector2(100, 15), 0.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.chain().finished.connect(chip.queue_free)
 
 func _get_call_amount() -> int:
 	if not current_room or not auth or not auth.current_user: return 0
@@ -115,7 +192,6 @@ func _refresh_ui():
 			my_player = p
 			break
 	
-	print(\"PokerTable: Refreshing UI. is_seated: \", is_seated, \" Players: \", current_room[\"game_state\"][\"players\"].size())
 	winner_label.hide()
 	pot_label.text = \"POT: C \" + str(int(current_room[\"game_state\"][\"pot\"]))
 	info_label.text = current_room[\"name\"] + \" - \" + current_room[\"game_state\"][\"round\"].to_upper() + \" (\" + str(int(current_room[\"small_blind\"])) + \"/\" + str(int(current_room[\"big_blind\"])) + \")\"
@@ -127,13 +203,14 @@ func _refresh_ui():
 		for w in winners:
 			names.append(w[\"username\"])
 			hand = w[\"hand_description\"]
-			# Fireworks for the first winner (usually just one)
 			if winners.find(w) == 0:
 				for i in range(5):
 					var p = _get_player_at_seat(i)
 					if p and p[\"id\"] == w[\"user_id\"]:
 						fireworks.global_position = seats[i].global_position + Vector2(60, 50)
 						fireworks.emitting = true
+						# Play multiple bursts
+						get_tree().create_timer(0.4).timeout.connect(func(): fireworks.restart())
 						break
 		
 		winner_label.text = \", \".join(names) + \" WINS!\\n\" + hand
@@ -142,23 +219,28 @@ func _refresh_ui():
 		winner_label.text = \"HAND OVER - DIVIDING POT\"
 		winner_label.show()
 	else:
-		_fireworks.emitting = false
+		fireworks.emitting = false
 	
 	standup_btn.visible = is_seated
 	
+	# Turn Highlight
+	var turn_id = current_room[\"game_state\"][\"current_turn\"]
+	var found_turn = false
 	for i in range(5):
 		var seat = seats[i]
 		var player = _get_player_at_seat(i)
 		var card_hbox = seat.get_node(\"Cards\")
 		var rank_label = seat.get_node(\"HandRank\")
-		# Clear old cards
 		for child in card_hbox.get_children(): child.queue_free()
 		
 		if player:
 			seat.get_node(\"Label\").text = player[\"username\"] + \"\\nC \" + str(int(player[\"balance\"]))
 			seat.get_node(\"SitBtn\").hide()
 			
-			# Show total bet
+			if player[\"id\"] == turn_id and current_room[\"game_state\"][\"round\"] != \"waiting\":
+				_update_turn_highlight(i)
+				found_turn = true
+			
 			var bet_badge = seat.get_node(\"BetBadge\")
 			var total_bet = int(player.get(\"last_bet\", 0))
 			if total_bet > 0:
@@ -167,7 +249,6 @@ func _refresh_ui():
 			else:
 				bet_badge.hide()
 			
-			# Show hand ranking if available
 			var hand_rank = player.get(\"current_hand\", \"\")
 			if hand_rank and player[\"in_game\"] and not player[\"is_folded\"]:
 				rank_label.text = hand_rank
@@ -175,21 +256,17 @@ func _refresh_ui():
 			else:
 				rank_label.hide()
 			
-			# Show cards
 			var player_cards = player.get(\"cards\", [])
 			var is_playing = current_room[\"game_state\"][\"round\"] != \"waiting\"
-			
 			if player_cards and player_cards.size() > 0 and is_playing:
 				for card_data in player_cards:
 					var card = preload(\"res://PokerCard.tscn\").instantiate()
 					card_hbox.add_child(card)
-					# Only show front if it's the current user or showdown
 					if player[\"id\"] == auth.current_user[\"id\"] or current_room[\"game_state\"][\"round\"] == \"showdown\":
 						card.set_card(card_data[\"suit\"], card_data[\"value\"])
 					else:
 						card.set_back()
 			elif player[\"in_game\"] and not player[\"is_folded\"] and is_playing:
-				# Show card placeholders/backs for other players if in game and round started
 				for j in range(2):
 					var card = preload(\"res://PokerCard.tscn\").instantiate()
 					card_hbox.add_child(card)
@@ -199,8 +276,9 @@ func _refresh_ui():
 			seat.get_node(\"SitBtn\").visible = not is_seated
 			seat.get_node(\"BetBadge\").hide()
 			rank_label.hide()
+	
+	if not found_turn: turn_highlight.hide()
 
-	# Update Community Cards
 	for child in community_container.get_children(): child.queue_free()
 	var community = current_room[\"game_state\"].get(\"community\", [])
 	if community:
@@ -209,7 +287,6 @@ func _refresh_ui():
 			community_container.add_child(card)
 			card.set_card(card_data[\"suit\"], card_data[\"value\"])
 
-	# Toggle controls based on turn
 	var id_turn = auth.current_user[\"id\"] if auth and auth.current_user else \"\"
 	var my_turn = current_room[\"game_state\"][\"current_turn\"] == id_turn
 	controls.visible = my_turn
@@ -219,21 +296,28 @@ func _refresh_ui():
 		call_btn.text = \"CALL\\n(C \" + str(call_amt) + \")\"
 		check_btn.visible = (call_amt == 0)
 		call_btn.visible = (call_amt > 0)
-		
-		# Setup slider
 		var bb = int(current_room.get(\"big_blind\", 20))
 		var max_bet = 0
 		for p in current_room[\"game_state\"][\"players\"]:
 			if p[\"last_bet\"] > max_bet: max_bet = p[\"last_bet\"]
-			
 		var min_raise = max_bet + bb
-		
 		bet_slider.min_value = min_raise
-		bet_slider.max_value = my_player[\"balance\"] + my_player[\"last_bet\"] # Total wealth can be bet
-		bet_slider.step = bb # Step by BB or at least something consistent
+		bet_slider.max_value = my_player[\"balance\"] + my_player[\"last_bet\"]
+		bet_slider.step = bb
 		bet_slider.value = min_raise
-		
 		_on_bet_slider_changed(bet_slider.value)
+
+func _update_turn_highlight(seat_idx):
+	if _turn_tween: _turn_tween.kill()
+	turn_highlight.show()
+	var target_pos = seats[seat_idx].global_position - Vector2(10, 10)
+	
+	# Move to seat and pulse
+	var tween = create_tween()
+	tween.tween_property(turn_highlight, \"global_position\", target_pos, 0.3).set_trans(Tween.TRANS_CUBIC)
+	_turn_tween = create_tween().set_loops()
+	_turn_tween.tween_property(turn_highlight, \"modulate:a\", 0.3, 0.5)
+	_turn_tween.tween_property(turn_highlight, \"modulate:a\", 1.0, 0.5)
 
 func _send_action(action_type, amount = 0):
 	if auth:
@@ -380,6 +464,14 @@ theme_override_font_sizes/font_size = 20
 text = "Table 1 - WAITING"
 horizontal_alignment = 2
 
+[node name="TurnHighlight" type="Panel" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(140, 150)
+layout_mode = 0
+offset_right = 140.0
+offset_bottom = 150.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_highlight")
+
 [node name="Seats" type="Control" parent="."]
 layout_mode = 1
 anchors_preset = 8
@@ -401,7 +493,7 @@ anchor_bottom = 0.5
 offset_left = -60.0
 offset_top = 220.0
 offset_right = 60.0
-offset_bottom = 320.0
+offset_bottom = 370.0
 grow_horizontal = 2
 grow_vertical = 2
 alignment = 1
@@ -449,7 +541,7 @@ anchor_bottom = 0.5
 offset_left = -380.0
 offset_top = 0.0
 offset_right = -260.0
-offset_bottom = 100.0
+offset_bottom = 150.0
 grow_horizontal = 2
 grow_vertical = 2
 alignment = 1
@@ -497,7 +589,7 @@ anchor_bottom = 0.5
 offset_left = -200.0
 offset_top = -250.0
 offset_right = -80.0
-offset_bottom = -150.0
+offset_bottom = -100.0
 grow_horizontal = 2
 grow_vertical = 2
 alignment = 1
@@ -545,7 +637,7 @@ anchor_bottom = 0.5
 offset_left = 80.0
 offset_top = -250.0
 offset_right = 200.0
-offset_bottom = -150.0
+offset_bottom = -100.0
 grow_horizontal = 2
 grow_vertical = 2
 alignment = 1
@@ -593,7 +685,7 @@ anchor_bottom = 0.5
 offset_left = 260.0
 offset_top = 0.0
 offset_right = 380.0
-offset_bottom = 100.0
+offset_bottom = 150.0
 grow_horizontal = 2
 grow_vertical = 2
 alignment = 1
