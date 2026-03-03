@@ -60,6 +60,59 @@ func GetHandRank(holeCards []models.Card, communityCards []models.Card) string {
 	return "High Card: " + allCards[0].Value
 }
 
+func GetHandScore(holeCards []models.Card, communityCards []models.Card) int {
+	allCards := append([]models.Card{}, holeCards...)
+	allCards = append(allCards, communityCards...)
+
+	if len(allCards) < 2 {
+		return 0
+	}
+
+	// Sort cards by value
+	sort.Slice(allCards, func(i, j int) bool {
+		iv := cardValueToInt(allCards[i].Value)
+		jv := cardValueToInt(allCards[j].Value)
+		return iv > jv
+	})
+
+	// Basic scoring: Rank * 1000000 + TopCardValue * 10000 + Kickers...
+	// Simplified for now: just Rank and Top Card
+	rank := 0
+	if isFlush(allCards) {
+		if isStraight(allCards) {
+			rank = 8
+		} else {
+			rank = 5
+		}
+	} else if isStraight(allCards) {
+		rank = 4
+	} else {
+		counts := getCounts(allCards)
+		if hasCount(counts, 4) {
+			rank = 7
+		} else if hasCount(counts, 3) && hasCount(counts, 2) {
+			rank = 6
+		} else if hasCount(counts, 3) {
+			rank = 3
+		} else {
+			pairCount := 0
+			for _, count := range counts {
+				if count == 2 {
+					pairCount++
+				}
+			}
+			if pairCount >= 2 {
+				rank = 2
+			} else if pairCount == 1 {
+				rank = 1
+			}
+		}
+	}
+
+	topValue := cardValueToInt(allCards[0].Value)
+	return rank*100 + topValue
+}
+
 func cardValueToInt(val string) int {
 	switch val {
 	case "2":

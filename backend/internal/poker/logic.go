@@ -236,21 +236,47 @@ func advanceRound(room *models.Room, bm BalanceManager) {
 }
 
 func EndHand(room *models.Room, bm BalanceManager) {
-	// Find winner(s)
-	var winners []*models.Player
+	// 1. Identify all active, non-folded players
+	var eligiblePlayers []*models.Player
 	for i := range room.GameState.Players {
 		if !room.GameState.Players[i].IsFolded && room.GameState.Players[i].InGame {
-			winners = append(winners, &room.GameState.Players[i])
+			eligiblePlayers = append(eligiblePlayers, &room.GameState.Players[i])
 		}
 	}
 
+	// 2. Find the highest score among eligible players
+	maxScore := -1
+	for _, p := range eligiblePlayers {
+		score := GetHandScore(p.Cards, room.GameState.Community)
+		if score > maxScore {
+			maxScore = score
+		}
+	}
+
+	// 3. Find all winners who share the highest score
+	var winners []*models.Player
+	for _, p := range eligiblePlayers {
+		score := GetHandScore(p.Cards, room.GameState.Community)
+		if score == maxScore {
+			winners = append(winners, p)
+		}
+	}
+
+	room.GameState.LastWinners = nil
 	if len(winners) > 0 {
-		// Divide pot among winners (simplified)
+		// Divide pot among winners (handle split pot)
 		share := room.GameState.Pot / float64(len(winners))
 		for _, w := range winners {
 			w.Balance += share
 			bm.UpdateBalance(w.ID, share, "poker_win")
 			bm.LogPokerEvent(room.ID, room.GameState.ID, "win", w.ID, w.Username, share, room.GameState.Pot, "Winner")
+
+			room.GameState.LastWinners = append(room.GameState.LastWinners, models.WinnerInfo{
+				UserID:          w.ID,
+				Username:        w.Username,
+				Amount:          share,
+				HandDescription: w.CurrentHand,
+			})
 		}
 	}
 

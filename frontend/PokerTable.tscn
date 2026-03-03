@@ -1,4 +1,4 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=6 format=3]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bg"]
 bg_color = Color(0.05, 0.1, 0.05, 1)
@@ -20,6 +20,14 @@ corner_radius_bottom_right = 10
 corner_radius_bottom_left = 10
 expand_margin_left = 5.0
 expand_margin_right = 5.0
+
+[sub_resource type="Curve" id="Curve_fireworks"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="Gradient" id="Gradient_fireworks"]
+offsets = PackedFloat32Array(0, 0.5, 1)
+colors = PackedColorArray(1, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0)
 
 [sub_resource type="GDScript" id="GDScript_poker_table"]
 script/source = "extends Control
@@ -43,6 +51,7 @@ var current_room = null
 @onready var standup_btn = %StandUpBtn
 @onready var bet_slider = %BetSlider
 @onready var bet_label = %BetValueLabel
+@onready var fireworks = %Fireworks
 
 func _ready():
 	if has_node(\"/root/AuthService\"):
@@ -111,9 +120,29 @@ func _refresh_ui():
 	pot_label.text = \"POT: C \" + str(int(current_room[\"game_state\"][\"pot\"]))
 	info_label.text = current_room[\"name\"] + \" - \" + current_room[\"game_state\"][\"round\"].to_upper() + \" (\" + str(int(current_room[\"small_blind\"])) + \"/\" + str(int(current_room[\"big_blind\"])) + \")\"
 	
-	if current_room[\"game_state\"][\"round\"] == \"waiting\" and current_room[\"game_state\"][\"players\"].size() >= 2:
+	var winners = current_room[\"game_state\"].get(\"last_winners\", [])
+	if current_room[\"game_state\"][\"round\"] == \"waiting\" and winners.size() > 0:
+		var names = []
+		var hand = \"\"
+		for w in winners:
+			names.append(w[\"username\"])
+			hand = w[\"hand_description\"]
+			# Fireworks for the first winner (usually just one)
+			if winners.find(w) == 0:
+				for i in range(5):
+					var p = _get_player_at_seat(i)
+					if p and p[\"id\"] == w[\"user_id\"]:
+						fireworks.global_position = seats[i].global_position + Vector2(60, 50)
+						fireworks.emitting = true
+						break
+		
+		winner_label.text = \", \".join(names) + \" WINS!\\n\" + hand
+		winner_label.show()
+	elif current_room[\"game_state\"][\"round\"] == \"waiting\" and current_room[\"game_state\"][\"players\"].size() >= 2:
 		winner_label.text = \"HAND OVER - DIVIDING POT\"
 		winner_label.show()
+	else:
+		fireworks.emitting = false
 	
 	standup_btn.visible = is_seated
 	
@@ -291,12 +320,12 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_top = -120.0
-offset_bottom = -80.0
+offset_top = -140.0
+offset_bottom = -70.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_colors/font_color = Color(1, 0.9, 0, 1)
-theme_override_font_sizes/font_size = 32
+theme_override_font_sizes/font_size = 28
 text = "WINNER!"
 horizontal_alignment = 1
 
@@ -600,6 +629,24 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 12
 text = "BET: C 0"
 horizontal_alignment = 1
+
+[node name="Fireworks" type="CPUParticles2D" parent="."]
+unique_name_in_owner = true
+z_index = -1
+emitting = false
+amount = 80
+lifetime = 1.5
+one_shot = true
+explosiveness = 0.8
+direction = Vector2(0, -1)
+spread = 180.0
+gravity = Vector2(0, 300)
+initial_velocity_min = 100.0
+initial_velocity_max = 400.0
+scale_amount_min = 5.0
+scale_amount_max = 12.0
+scale_amount_curve = SubResource("Curve_fireworks")
+color_ramp = SubResource("Gradient_fireworks")
 
 [node name="Controls" type="VBoxContainer" parent="."]
 unique_name_in_owner = true

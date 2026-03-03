@@ -19,14 +19,22 @@ type Player struct {
 	CurrentHand string  `json:"current_hand,omitempty"`
 }
 
+type WinnerInfo struct {
+	UserID          string  `json:"user_id"`
+	Username        string  `json:"username"`
+	Amount          float64 `json:"amount"`
+	HandDescription string  `json:"hand_description"`
+}
+
 type GameState struct {
-	ID          string   `json:"id"`
-	Players     []Player `json:"players"`
-	Community   []Card   `json:"community"`
-	Pot         float64  `json:"pot"`
-	CurrentTurn string   `json:"current_turn"`
-	Round       string   `json:"round"` // "waiting", "pre-flop", "flop", "turn", "river", "showdown"
-	DealerIdx   int      `json:"dealer_idx"`
+	ID          string       `json:"id"`
+	Players     []Player     `json:"players"`
+	Community   []Card       `json:"community"`
+	Pot         float64      `json:"pot"`
+	CurrentTurn string       `json:"current_turn"`
+	Round       string       `json:"round"` // "waiting", "pre-flop", "flop", "turn", "river", "showdown"
+	DealerIdx   int          `json:"dealer_idx"`
+	LastWinners []WinnerInfo `json:"last_winners,omitempty"`
 }
 
 type Room struct {
