@@ -274,7 +274,7 @@ func _refresh_ui():
 	if not found_turn: turn_highlight.hide()
 
 	# Dealer Button
-	var dealer_idx = current_room["game_state"].get("dealer_idx", -1)
+	var dealer_idx = current_room[\"game_state\"].get(\"dealer_idx\", -1)
 	if dealer_idx >= 0 and dealer_idx < seats.size():
 		dealer_button.show()
 		var dealer_target = seats[dealer_idx].global_position + Vector2(100, 20)
