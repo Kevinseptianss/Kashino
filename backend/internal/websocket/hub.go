@@ -338,21 +338,13 @@ func (h *Hub) UpdateBalance(userID string, amount float64, source string) {
 	}
 }
 
-func (h *Hub) LogPokerEvent(roomID string, event string, playerID string, username string, amount float64, pot float64, details string) {
+func (h *Hub) LogPokerEvent(roomID string, handID string, event string, playerID string, username string, amount float64, pot float64, details string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	handID := "hand_" + time.Now().Format("20060102150405")
-	h.mu.RLock()
-	if r, ok := h.Rooms[roomID]; ok {
-		if r.GameState.ID == "" {
-			// In a real app, we'd set this at StartHand
-			handID = "h_" + primitive.NewObjectID().Hex()
-		} else {
-			handID = r.GameState.ID
-		}
+	if handID == "" {
+		handID = "h_" + primitive.NewObjectID().Hex()
 	}
-	h.mu.RUnlock()
 
 	history := models.PokerHistory{
 		ID:        primitive.NewObjectID(),

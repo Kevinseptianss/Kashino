@@ -32,7 +32,7 @@ var currentDeck []models.Card
 type BalanceManager interface {
 	UpdateBalance(userID string, amount float64, source string)
 	NotifyRoomUpdate(action string, room *models.Room)
-	LogPokerEvent(roomID string, event string, playerID string, username string, amount float64, pot float64, details string)
+	LogPokerEvent(roomID string, handID string, event string, playerID string, username string, amount float64, pot float64, details string)
 }
 
 func StartHand(room *models.Room, bm BalanceManager) {
@@ -83,14 +83,14 @@ func StartHand(room *models.Room, bm BalanceManager) {
 	sbPlayer.LastBet = room.SmallBlind
 	sbPlayer.Balance -= room.SmallBlind
 	bm.UpdateBalance(sbPlayer.ID, -room.SmallBlind, "poker_blind")
-	bm.LogPokerEvent(room.ID, "small_blind", sbPlayer.ID, sbPlayer.Username, room.SmallBlind, room.SmallBlind, "Small Blind")
+	bm.LogPokerEvent(room.ID, room.GameState.ID, "small_blind", sbPlayer.ID, sbPlayer.Username, room.SmallBlind, room.SmallBlind, "Small Blind")
 
 	// Deduct Big Blind
 	bbPlayer := &room.GameState.Players[bbIdx]
 	bbPlayer.LastBet = room.BigBlind
 	bbPlayer.Balance -= room.BigBlind
 	bm.UpdateBalance(bbPlayer.ID, -room.BigBlind, "poker_blind")
-	bm.LogPokerEvent(room.ID, "big_blind", bbPlayer.ID, bbPlayer.Username, room.BigBlind, room.SmallBlind+room.BigBlind, "Big Blind")
+	bm.LogPokerEvent(room.ID, room.GameState.ID, "big_blind", bbPlayer.ID, bbPlayer.Username, room.BigBlind, room.SmallBlind+room.BigBlind, "Big Blind")
 
 	room.GameState.Pot = room.SmallBlind + room.BigBlind
 	room.GameState.CurrentTurn = room.GameState.Players[(bbIdx+1)%n].ID
@@ -119,7 +119,7 @@ func HandleAction(room *models.Room, playerID string, action models.PokerAction,
 		for i := range room.GameState.Players {
 			if room.GameState.Players[i].ID == playerID {
 				room.GameState.Players[i].IsFolded = true
-				bm.LogPokerEvent(room.ID, "fold", playerID, room.GameState.Players[i].Username, 0, room.GameState.Pot, "Fold")
+				bm.LogPokerEvent(room.ID, room.GameState.ID, "fold", playerID, room.GameState.Players[i].Username, 0, room.GameState.Pot, "Fold")
 				break
 			}
 		}
@@ -140,7 +140,7 @@ func HandleAction(room *models.Room, playerID string, action models.PokerAction,
 					room.GameState.Pot += diff
 					room.GameState.Players[i].LastBet += diff
 					bm.UpdateBalance(playerID, -diff, "poker_bet")
-					bm.LogPokerEvent(room.ID, action.Action, playerID, room.GameState.Players[i].Username, diff, room.GameState.Pot, action.Action)
+					bm.LogPokerEvent(room.ID, room.GameState.ID, action.Action, playerID, room.GameState.Players[i].Username, diff, room.GameState.Pot, action.Action)
 				}
 				break
 			}
@@ -156,7 +156,7 @@ func HandleAction(room *models.Room, playerID string, action models.PokerAction,
 					room.GameState.Pot += diff
 					room.GameState.Players[i].LastBet += diff
 					bm.UpdateBalance(playerID, -diff, "poker_bet")
-					bm.LogPokerEvent(room.ID, "raise", playerID, room.GameState.Players[i].Username, diff, room.GameState.Pot, "Raise to "+fmt.Sprintf("%.0f", action.Amount))
+					bm.LogPokerEvent(room.ID, room.GameState.ID, "raise", playerID, room.GameState.Players[i].Username, diff, room.GameState.Pot, "Raise to "+fmt.Sprintf("%.0f", action.Amount))
 				}
 				break
 			}
@@ -250,7 +250,7 @@ func EndHand(room *models.Room, bm BalanceManager) {
 		for _, w := range winners {
 			w.Balance += share
 			bm.UpdateBalance(w.ID, share, "poker_win")
-			bm.LogPokerEvent(room.ID, "win", w.ID, w.Username, share, room.GameState.Pot, "Winner")
+			bm.LogPokerEvent(room.ID, room.GameState.ID, "win", w.ID, w.Username, share, room.GameState.Pot, "Winner")
 		}
 	}
 
