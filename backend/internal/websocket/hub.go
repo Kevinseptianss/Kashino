@@ -292,6 +292,12 @@ func (h *Hub) removePlayerFromAllRoomsLocked(userIDHex string) {
 			if p.ID == userIDHex {
 				found = true
 				log.Printf("Removing player %s from room %s", p.Username, roomID)
+
+				// Critical: If it was their turn, "fold" them out before removing
+				// to ensure turn progression and game settlement.
+				if room.GameState.CurrentTurn == userIDHex && room.GameState.Round != "waiting" {
+					poker.HandleAction(room, userIDHex, models.PokerAction{Action: "fold"}, h)
+				}
 				continue
 			}
 			newPlayers = append(newPlayers, p)
