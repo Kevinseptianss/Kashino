@@ -47,12 +47,13 @@ func main() {
 
 	// Repositories
 	userRepo := repository.NewUserRepository(db)
+	pokerRepo := repository.NewPokerRepository(db)
 
 	// Handlers
 	userHandler := handlers.NewUserHandler(userRepo)
 
 	// WebSocket Hub
-	hub := websocket.NewHub(userRepo)
+	hub := websocket.NewHub(userRepo, pokerRepo)
 	go hub.Run()
 
 	// Routes

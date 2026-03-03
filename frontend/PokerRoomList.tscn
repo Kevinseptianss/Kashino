@@ -1,0 +1,193 @@
+[gd_scene load_steps=3 format=3]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bg"]
+bg_color = Color(0.04, 0.04, 0.06, 1)
+
+[sub_resource type="GDScript" id="GDScript_room_list"]
+script/source = "extends Control
+
+@onready var room_container = %RoomContainer
+@onready var status_label = %StatusLabel
+
+var auth = null
+var room_buttons = {} # room_id -> Button
+
+func _ready():
+	if has_node(\"/root/AuthService\"):
+		auth = get_node(\"/root/AuthService\")
+		auth.connection_status_changed.connect(_on_connection_changed)
+		auth.rooms_received.connect(_on_rooms_received)
+		auth.room_update.connect(_on_single_room_update)
+		auth.player_sat.connect(_on_single_room_update)
+		
+		# Wait a bit for WS to be ready if just logged in
+		get_tree().create_timer(0.5).timeout.connect(refresh_rooms)
+
+func refresh_rooms():
+	print(\"PokerRoomList: Refreshing rooms, WS connected: \", auth.ws_connected if auth else \"NO AUTH\")
+	if auth and auth.ws_connected:
+		status_label.text = \"Fetching rooms...\"
+		auth.get_rooms()
+	elif auth:
+		status_label.text = \"Offline - Connecting...\"
+		auth._connect_to_ws()
+
+func _on_rooms_received(rooms_data):
+	print(\"PokerRoomList: General update received! Data type: \", typeof(rooms_data))
+	status_label.text = \"\"
+	
+	# Clear old
+	for child in room_container.get_children():
+		child.queue_free()
+	room_buttons.clear()
+	
+	var rooms = []
+	if rooms_data is Array:
+		rooms = rooms_data
+	elif rooms_data is Dictionary and rooms_data.has(\"rooms\"):
+		rooms = rooms_data[\"rooms\"]
+	elif rooms_data is Dictionary:
+		# Sometimes the response itself IS the dictionary with rooms key
+		if rooms_data.has(\"rooms\") and rooms_data[\"rooms\"] is Array:
+			rooms = rooms_data[\"rooms\"]
+		else:
+			# Fallback: maybe the dict is a map of rooms? 
+			rooms = rooms_data.values()
+	
+	if rooms.size() > 0:
+		for room in rooms:
+			if room is Dictionary:
+				_create_room_item(room)
+	else:
+		status_label.text = \"No rooms available\"
+
+func _on_single_room_update(room_data):
+	var rid = room_data.get(\"id\", \"\")
+	if room_buttons.has(rid):
+		print(\"PokerRoomList: Live update for room \", rid)
+		var btn = room_buttons[rid]
+		var sb = int(room_data.get(\"small_blind\", 0))
+		var bb = int(room_data.get(\"big_blind\", 0))
+		btn.text = \"%s (%d/%d) (%d/%d Players)\" % [
+			room_data[\"name\"], 
+			sb, bb,
+			room_data[\"game_state\"][\"players\"].size(), 
+			room_data[\"max_players\"]
+		]
+	else:
+		# If it's a room we don't know about yet, just refresh the whole list
+		refresh_rooms()
+
+func _on_connection_changed(online):
+	if online:
+		refresh_rooms()
+	else:
+		status_label.text = \"Offline - Connect to see rooms\"
+
+func _on_back_pressed():
+	queue_free()
+
+func _create_room_item(room_data):
+	var rid = room_data[\"id\"]
+	var sb = int(room_data.get(\"small_blind\", 0))
+	var bb = int(room_data.get(\"big_blind\", 0))
+	var btn = Button.new()
+	btn.text = \"%s (%d/%d) (%d/%d Players)\" % [
+		room_data[\"name\"], 
+		sb, bb,
+		room_data[\"game_state\"][\"players\"].size(), 
+		room_data[\"max_players\"]
+	]
+	btn.custom_minimum_size = Vector2(0, 80)
+	btn.pressed.connect(func(): _join_room(rid))
+	room_container.add_child(btn)
+	room_buttons[rid] = btn
+
+func _join_room(room_id):
+	var table = preload(\"res://PokerTable.tscn\").instantiate()
+	table.room_id = room_id
+	get_parent().add_child(table)
+	queue_free()
+"
+
+[node name="PokerRoomList" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = SubResource("GDScript_room_list")
+
+[node name="BG" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_bg")
+
+[node name="VBox" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 20
+
+[node name="Header" type="MarginContainer" parent="VBox"]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 40
+theme_override_constants/margin_right = 20
+
+[node name="HBox" type="HBoxContainer" parent="VBox/Header"]
+layout_mode = 2
+
+[node name="BackBtn" type="Button" parent="VBox/Header/HBox"]
+custom_minimum_size = Vector2(100, 50)
+layout_mode = 2
+text = "BACK"
+
+[node name="Title" type="Label" parent="VBox/Header/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 28
+text = "POKER ROOMS"
+horizontal_alignment = 1
+
+[node name="Padding" type="Control" parent="VBox/Header/HBox"]
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+
+[node name="StatusArea" type="MarginContainer" parent="VBox"]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_right = 20
+
+[node name="StatusLabel" type="Label" parent="VBox/StatusArea"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Fetching rooms..."
+horizontal_alignment = 1
+theme_override_colors/font_color = Color(0.6, 0.6, 0.7, 1)
+
+[node name="Scroll" type="ScrollContainer" parent="VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Margin" type="MarginContainer" parent="VBox/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/margin_left = 30
+theme_override_constants/margin_right = 30
+
+[node name="RoomContainer" type="VBoxContainer" parent="VBox/Scroll/Margin"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 15
+
+[connection signal="pressed" from="VBox/Header/HBox/BackBtn" to="." method="_on_back_pressed"]

@@ -1,22 +1,59 @@
-[gd_scene load_steps=3 format=3]\n\n[ext_resource type="Texture2D" path="res://assets/slots/icons.png" id="1_icons"]
+[gd_scene load_steps=4 format=3]
+
+[sub_resource type="Shader" id="Shader_blur"]
+code = "shader_type canvas_item;
+
+uniform float blur_amount : hint_range(0.0, 0.1) = 0.0;
+
+void fragment() {
+	vec4 color = vec4(0.0);
+	float total_weight = 0.0;
+	
+	for (float i = -4.0; i <= 4.0; i++) {
+		float weight = 1.0 - abs(i) / 5.0;
+		color += texture(TEXTURE, UV + vec2(0.0, i * blur_amount)) * weight;
+		total_weight += weight;
+	}
+	
+	COLOR = color / total_weight;
+}
+"
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_icon"]
+shader = SubResource("Shader_blur")
+shader_parameter/blur_amount = 0.0
 
 [sub_resource type="GDScript" id="GDScript_icon"]
 script/source = "extends Sprite2D
 
-enum IconType { CHERRY, LEMON, ORANGE, PLUM, WATERMELON, SEVEN }\nvar type: IconType
+enum IconType { CHERRY, LEMON, ORANGE, PLUM, WATERMELON, SEVEN }
+var type = 0
 
-const ICON_SIZE = Vector2(341, 512) # Based on 1024x1024 sheet with 3x2 grid
+func set_icon(new_type):
+	self.type = new_type
+	var tex_path = \"res://assets/slots/\"
+	match int(new_type):
+		0: tex_path += \"cherry.png\"
+		1: tex_path += \"lemon.png\"
+		2: tex_path += \"orange.png\"
+		3: tex_path += \"plum.png\"
+		4: tex_path += \"watermelon.png\"
+		5: tex_path += \"seven.png\"
+	
+	if FileAccess.file_exists(tex_path):
+		texture = load(tex_path)
+	else:
+		texture = load(\"res://assets/slots/seven.png\")
+	
+	# Adjust scale for full-screen portrait
+	scale = Vector2(0.4, 0.4)
 
-func set_icon(type: IconType):
-	var row = int(type) / 3
-	var col = int(type) % 3\n\tself.type = type
-	region_enabled = true
-	region_rect = Rect2(Vector2(col * ICON_SIZE.x, row * ICON_SIZE.y), ICON_SIZE)
+func set_blur(amount: float):
+	if material is ShaderMaterial:
+		material.set_shader_parameter(\"blur_amount\", amount)
 "
 
 [node name="SlotIcon" type="Sprite2D"]
+material = SubResource("ShaderMaterial_icon")
 scale = Vector2(0.4, 0.4)
-texture = ExtResource("1_icons")
-region_enabled = true
-region_rect = Rect2(0, 0, 341, 512)
 script = SubResource("GDScript_icon")

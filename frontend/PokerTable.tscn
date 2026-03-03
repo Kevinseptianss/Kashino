@@ -1,0 +1,670 @@
+[gd_scene load_steps=3 format=3]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bg"]
+bg_color = Color(0.05, 0.1, 0.05, 1)
+border_width_left = 10
+border_width_top = 10
+border_width_right = 10
+border_width_bottom = 10
+border_color = Color(0.3, 0.2, 0.1, 1)
+corner_radius_top_left = 200
+corner_radius_top_right = 200
+corner_radius_bottom_right = 200
+corner_radius_bottom_left = 200
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bet"]
+bg_color = Color(0.2, 0.4, 0.2, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+expand_margin_left = 5.0
+expand_margin_right = 5.0
+
+[sub_resource type="GDScript" id="GDScript_poker_table"]
+script/source = "extends Control
+
+var room_id = \"\"
+var auth = null
+var current_room = null
+
+@onready var community_container = %CommunityCards
+@onready var pot_label = %PotLabel
+@onready var info_label = %InfoLabel
+@onready var seats = [
+	%Seat0, %Seat1, %Seat2, %Seat3, %Seat4
+]
+@onready var controls = %Controls
+@onready var fold_btn = %FoldBtn
+@onready var check_btn = %CheckBtn
+@onready var call_btn = %CallBtn
+@onready var raise_btn = %RaiseBtn
+@onready var winner_label = %WinnerLabel
+@onready var standup_btn = %StandUpBtn
+@onready var bet_slider = %BetSlider
+@onready var bet_label = %BetValueLabel
+
+func _ready():
+	if has_node(\"/root/AuthService\"):
+		auth = get_node(\"/root/AuthService\")
+		auth.player_sat.connect(_on_player_sat)
+		auth.room_joined.connect(_on_room_update)
+		auth.room_update.connect(_on_room_update)
+		
+		# Join the room
+		auth._send_ws_message(\"join_room\", {\"room_id\": room_id})
+	
+	fold_btn.pressed.connect(func(): _send_action(\"fold\"))
+	check_btn.pressed.connect(func(): _send_action(\"check\"))
+	call_btn.pressed.connect(func():
+		var to_call = _get_call_amount()
+		_send_action(\"call\", to_call)
+	)
+	raise_btn.pressed.connect(func():
+		_send_action(\"raise\", int(bet_slider.value))
+	)
+	standup_btn.pressed.connect(_on_standup_pressed)
+	bet_slider.value_changed.connect(_on_bet_slider_changed)
+
+func _on_bet_slider_changed(val):
+	bet_label.text = \"RAISE: C \" + str(int(val))
+	raise_btn.text = \"RAISE\\n(C \" + str(int(val)) + \")\"
+
+func _on_room_update(room_data):
+	if room_data.get(\"id\") != room_id: return
+	print(\"PokerTable: Room update received for \", room_id)
+	current_room = room_data
+	_refresh_ui()
+
+func _on_player_sat(room_data):
+	if room_data.get(\"id\") != room_id: return
+	print(\"PokerTable: Player sat in \", room_id)
+	current_room = room_data
+	_refresh_ui()
+
+func _get_call_amount() -> int:
+	if not current_room or not auth or not auth.current_user: return 0
+	var my_id = auth.current_user[\"id\"]
+	var max_bet = 0
+	var my_bet = 0
+	for p in current_room[\"game_state\"][\"players\"]:
+		if p[\"last_bet\"] > max_bet:
+			max_bet = p[\"last_bet\"]
+		if p[\"id\"] == my_id:
+			my_bet = p[\"last_bet\"]
+	return max_bet - my_bet
+
+func _refresh_ui():
+	if not current_room: return
+	
+	var id = auth.current_user[\"id\"] if auth and auth.current_user else \"\"
+	var is_seated = false
+	var my_player = null
+	for p in current_room[\"game_state\"][\"players\"]:
+		if p[\"id\"] == id:
+			is_seated = true
+			my_player = p
+			break
+	
+	print(\"PokerTable: Refreshing UI. is_seated: \", is_seated, \" Players: \", current_room[\"game_state\"][\"players\"].size())
+	winner_label.hide()
+	pot_label.text = \"POT: C \" + str(int(current_room[\"game_state\"][\"pot\"]))
+	info_label.text = current_room[\"name\"] + \" - \" + current_room[\"game_state\"][\"round\"].to_upper() + \" (\" + str(int(current_room[\"small_blind\"])) + \"/\" + str(int(current_room[\"big_blind\"])) + \")\"
+	
+	if current_room[\"game_state\"][\"round\"] == \"waiting\" and current_room[\"game_state\"][\"players\"].size() >= 2:
+		winner_label.text = \"HAND OVER - DIVIDING POT\"
+		winner_label.show()
+	
+	standup_btn.visible = is_seated
+	
+	for i in range(5):
+		var seat = seats[i]
+		var player = _get_player_at_seat(i)
+		var card_hbox = seat.get_node(\"Cards\")
+		var rank_label = seat.get_node(\"HandRank\")
+		# Clear old cards
+		for child in card_hbox.get_children(): child.queue_free()
+		
+		if player:
+			seat.get_node(\"Label\").text = player[\"username\"] + \"\\nC \" + str(int(player[\"balance\"]))
+			seat.get_node(\"SitBtn\").hide()
+			
+			# Show total bet
+			var bet_badge = seat.get_node(\"BetBadge\")
+			var total_bet = int(player.get(\"last_bet\", 0))
+			if total_bet > 0:
+				bet_badge.get_node(\"Label\").text = \"BET: C \" + str(total_bet)
+				bet_badge.show()
+			else:
+				bet_badge.hide()
+			
+			# Show hand ranking if available
+			var hand_rank = player.get(\"current_hand\", \"\")
+			if hand_rank and player[\"in_game\"] and not player[\"is_folded\"]:
+				rank_label.text = hand_rank
+				rank_label.show()
+			else:
+				rank_label.hide()
+			
+			# Show cards
+			var player_cards = player.get(\"cards\", [])
+			var is_playing = current_room[\"game_state\"][\"round\"] != \"waiting\"
+			
+			if player_cards and player_cards.size() > 0 and is_playing:
+				for card_data in player_cards:
+					var card = preload(\"res://PokerCard.tscn\").instantiate()
+					card_hbox.add_child(card)
+					# Only show front if it's the current user or showdown
+					if player[\"id\"] == auth.current_user[\"id\"] or current_room[\"game_state\"][\"round\"] == \"showdown\":
+						card.set_card(card_data[\"suit\"], card_data[\"value\"])
+					else:
+						card.set_back()
+			elif player[\"in_game\"] and not player[\"is_folded\"] and is_playing:
+				# Show card placeholders/backs for other players if in game and round started
+				for j in range(2):
+					var card = preload(\"res://PokerCard.tscn\").instantiate()
+					card_hbox.add_child(card)
+					card.set_back()
+		else:
+			seat.get_node(\"Label\").text = \"Empty\"
+			seat.get_node(\"SitBtn\").visible = not is_seated
+			seat.get_node(\"BetBadge\").hide()
+			rank_label.hide()
+
+	# Update Community Cards
+	for child in community_container.get_children(): child.queue_free()
+	var community = current_room[\"game_state\"].get(\"community\", [])
+	if community:
+		for card_data in community:
+			var card = preload(\"res://PokerCard.tscn\").instantiate()
+			community_container.add_child(card)
+			card.set_card(card_data[\"suit\"], card_data[\"value\"])
+
+	# Toggle controls based on turn
+	var id_turn = auth.current_user[\"id\"] if auth and auth.current_user else \"\"
+	var my_turn = current_room[\"game_state\"][\"current_turn\"] == id_turn
+	controls.visible = my_turn
+	
+	if my_turn and my_player:
+		var call_amt = _get_call_amount()
+		call_btn.text = \"CALL\\n(C \" + str(call_amt) + \")\"
+		check_btn.visible = (call_amt == 0)
+		call_btn.visible = (call_amt > 0)
+		
+		# Setup slider
+		var bb = int(current_room.get(\"big_blind\", 20))
+		var max_bet = 0
+		for p in current_room[\"game_state\"][\"players\"]:
+			if p[\"last_bet\"] > max_bet: max_bet = p[\"last_bet\"]
+			
+		var min_raise = max_bet + bb
+		
+		bet_slider.min_value = min_raise
+		bet_slider.max_value = my_player[\"balance\"] + my_player[\"last_bet\"] # Total wealth can be bet
+		bet_slider.step = bb # Step by BB or at least something consistent
+		bet_slider.value = min_raise
+		
+		_on_bet_slider_changed(bet_slider.value)
+
+func _send_action(action_type, amount = 0):
+	if auth:
+		auth._send_ws_message(\"poker_action\", {
+			\"room_id\": room_id,
+			\"action\": {
+				\"action\": action_type,
+				\"amount\": amount
+			}
+		})
+
+func _get_player_at_seat(pos):
+	for p in current_room[\"game_state\"][\"players\"]:
+		if p[\"position\"] == pos:
+			return p
+	return null
+
+func _on_sit_pressed(seat_idx):
+	if auth:
+		auth._send_ws_message(\"sit\", {\"room_id\": room_id, \"seat\": seat_idx})
+
+func _on_standup_pressed():
+	if auth:
+		auth._send_ws_message(\"standup\", {\"room_id\": room_id})
+
+func _on_back_pressed():
+	queue_free()
+"
+
+[node name="PokerTable" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = SubResource("GDScript_poker_table")
+
+[node name="BG" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.04, 0.04, 0.05, 1)
+
+[node name="Table" type="Panel" parent="."]
+custom_minimum_size = Vector2(650, 400)
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_top = -100.0
+offset_bottom = 300.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_bg")
+
+[node name="PotLabel" type="Label" parent="Table"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_top = -50.0
+offset_bottom = -20.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 24
+text = "POT: C 0"
+horizontal_alignment = 1
+
+[node name="WinnerLabel" type="Label" parent="Table"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_top = -120.0
+offset_bottom = -80.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 0.9, 0, 1)
+theme_override_font_sizes/font_size = 32
+text = "WINNER!"
+horizontal_alignment = 1
+
+[node name="CommunityCards" type="HBoxContainer" parent="Table"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -175.0
+offset_top = 10.0
+offset_right = 175.0
+offset_bottom = 110.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 5
+alignment = 1
+
+[node name="Header" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 100.0
+grow_horizontal = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 40
+theme_override_constants/margin_right = 20
+
+[node name="HBox" type="HBoxContainer" parent="Header"]
+layout_mode = 2
+
+[node name="BackBtn" type="Button" parent="Header/HBox"]
+custom_minimum_size = Vector2(100, 50)
+layout_mode = 2
+text = "EXIT"
+
+[node name="StandUpBtn" type="Button" parent="Header/HBox"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(120, 50)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.8, 0.4, 1)
+text = "STAND UP"
+
+[node name="InfoLabel" type="Label" parent="Header/HBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 20
+text = "Table 1 - WAITING"
+horizontal_alignment = 2
+
+[node name="Seats" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Seat0" type="VBoxContainer" parent="Seats"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -60.0
+offset_top = 220.0
+offset_right = 60.0
+offset_bottom = 320.0
+grow_horizontal = 2
+grow_vertical = 2
+alignment = 1
+
+[node name="HandRank" type="Label" parent="Seats/Seat0"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.8, 0, 1)
+theme_override_font_sizes/font_size = 14
+text = "High Card"
+horizontal_alignment = 1
+
+[node name="Cards" type="HBoxContainer" parent="Seats/Seat0"]
+layout_mode = 2
+theme_override_constants/separation = -10
+alignment = 1
+
+[node name="SitBtn" type="Button" parent="Seats/Seat0"]
+layout_mode = 2
+text = "SIT"
+
+[node name="Label" type="Label" parent="Seats/Seat0"]
+layout_mode = 2
+text = "Empty"
+horizontal_alignment = 1
+
+[node name="BetBadge" type="PanelContainer" parent="Seats/Seat0"]
+visible = false
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_bet")
+
+[node name="Label" type="Label" parent="Seats/Seat0/BetBadge"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "BET: C 0"
+horizontal_alignment = 1
+
+[node name="Seat1" type="VBoxContainer" parent="Seats"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -380.0
+offset_top = 0.0
+offset_right = -260.0
+offset_bottom = 100.0
+grow_horizontal = 2
+grow_vertical = 2
+alignment = 1
+
+[node name="HandRank" type="Label" parent="Seats/Seat1"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.8, 0, 1)
+theme_override_font_sizes/font_size = 14
+text = "High Card"
+horizontal_alignment = 1
+
+[node name="Cards" type="HBoxContainer" parent="Seats/Seat1"]
+layout_mode = 2
+theme_override_constants/separation = -10
+alignment = 1
+
+[node name="SitBtn" type="Button" parent="Seats/Seat1"]
+layout_mode = 2
+text = "SIT"
+
+[node name="Label" type="Label" parent="Seats/Seat1"]
+layout_mode = 2
+text = "Empty"
+horizontal_alignment = 1
+
+[node name="BetBadge" type="PanelContainer" parent="Seats/Seat1"]
+visible = false
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_bet")
+
+[node name="Label" type="Label" parent="Seats/Seat1/BetBadge"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "BET: C 0"
+horizontal_alignment = 1
+
+[node name="Seat2" type="VBoxContainer" parent="Seats"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -200.0
+offset_top = -250.0
+offset_right = -80.0
+offset_bottom = -150.0
+grow_horizontal = 2
+grow_vertical = 2
+alignment = 1
+
+[node name="HandRank" type="Label" parent="Seats/Seat2"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.8, 0, 1)
+theme_override_font_sizes/font_size = 14
+text = "High Card"
+horizontal_alignment = 1
+
+[node name="Cards" type="HBoxContainer" parent="Seats/Seat2"]
+layout_mode = 2
+theme_override_constants/separation = -10
+alignment = 1
+
+[node name="SitBtn" type="Button" parent="Seats/Seat2"]
+layout_mode = 2
+text = "SIT"
+
+[node name="Label" type="Label" parent="Seats/Seat2"]
+layout_mode = 2
+text = "Empty"
+horizontal_alignment = 1
+
+[node name="BetBadge" type="PanelContainer" parent="Seats/Seat2"]
+visible = false
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_bet")
+
+[node name="Label" type="Label" parent="Seats/Seat2/BetBadge"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "BET: C 0"
+horizontal_alignment = 1
+
+[node name="Seat3" type="VBoxContainer" parent="Seats"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = 80.0
+offset_top = -250.0
+offset_right = 200.0
+offset_bottom = -150.0
+grow_horizontal = 2
+grow_vertical = 2
+alignment = 1
+
+[node name="HandRank" type="Label" parent="Seats/Seat3"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.8, 0, 1)
+theme_override_font_sizes/font_size = 14
+text = "High Card"
+horizontal_alignment = 1
+
+[node name="Cards" type="HBoxContainer" parent="Seats/Seat3"]
+layout_mode = 2
+theme_override_constants/separation = -10
+alignment = 1
+
+[node name="SitBtn" type="Button" parent="Seats/Seat3"]
+layout_mode = 2
+text = "SIT"
+
+[node name="Label" type="Label" parent="Seats/Seat3"]
+layout_mode = 2
+text = "Empty"
+horizontal_alignment = 1
+
+[node name="BetBadge" type="PanelContainer" parent="Seats/Seat3"]
+visible = false
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_bet")
+
+[node name="Label" type="Label" parent="Seats/Seat3/BetBadge"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "BET: C 0"
+horizontal_alignment = 1
+
+[node name="Seat4" type="VBoxContainer" parent="Seats"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = 260.0
+offset_top = 0.0
+offset_right = 380.0
+offset_bottom = 100.0
+grow_horizontal = 2
+grow_vertical = 2
+alignment = 1
+
+[node name="HandRank" type="Label" parent="Seats/Seat4"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.8, 0, 1)
+theme_override_font_sizes/font_size = 14
+text = "High Card"
+horizontal_alignment = 1
+
+[node name="Cards" type="HBoxContainer" parent="Seats/Seat4"]
+layout_mode = 2
+theme_override_constants/separation = -10
+alignment = 1
+
+[node name="SitBtn" type="Button" parent="Seats/Seat4"]
+layout_mode = 2
+text = "SIT"
+
+[node name="Label" type="Label" parent="Seats/Seat4"]
+layout_mode = 2
+text = "Empty"
+horizontal_alignment = 1
+
+[node name="BetBadge" type="PanelContainer" parent="Seats/Seat4"]
+visible = false
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_bet")
+
+[node name="Label" type="Label" parent="Seats/Seat4/BetBadge"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "BET: C 0"
+horizontal_alignment = 1
+
+[node name="Controls" type="VBoxContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -180.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_constants/separation = 15
+alignment = 1
+
+[node name="BetValueLabel" type="Label" parent="Controls"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "RAISE: C 20"
+horizontal_alignment = 1
+
+[node name="BetSlider" type="HSlider" parent="Controls"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(400, 40)
+layout_mode = 2
+size_flags_horizontal = 4
+min_value = 20.0
+max_value = 1000.0
+step = 10.0
+value = 20.0
+
+[node name="HBox" type="HBoxContainer" parent="Controls"]
+layout_mode = 2
+theme_override_constants/separation = 10
+alignment = 1
+
+[node name="FoldBtn" type="Button" parent="Controls/HBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 70)
+layout_mode = 2
+text = "FOLD"
+
+[node name="CheckBtn" type="Button" parent="Controls/HBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 70)
+layout_mode = 2
+text = "CHECK"
+
+[node name="CallBtn" type="Button" parent="Controls/HBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 70)
+layout_mode = 2
+text = "CALL
+(C 0)"
+
+[node name="RaiseBtn" type="Button" parent="Controls/HBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 70)
+layout_mode = 2
+text = "RAISE
+(C 20)"
+
+[connection signal="pressed" from="Header/HBox/BackBtn" to="." method="_on_back_pressed"]
+[connection signal="pressed" from="Seats/Seat0/SitBtn" to="." method="_on_sit_pressed" binds= [0]]
+[connection signal="pressed" from="Seats/Seat1/SitBtn" to="." method="_on_sit_pressed" binds= [1]]
+[connection signal="pressed" from="Seats/Seat2/SitBtn" to="." method="_on_sit_pressed" binds= [2]]
+[connection signal="pressed" from="Seats/Seat3/SitBtn" to="." method="_on_sit_pressed" binds= [3]]
+[connection signal="pressed" from="Seats/Seat4/SitBtn" to="." method="_on_sit_pressed" binds= [4]]

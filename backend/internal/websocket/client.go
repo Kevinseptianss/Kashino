@@ -18,12 +18,12 @@ const (
 	writeWait      = 10 * time.Second
 	pongWait       = 60 * time.Second
 	pingPeriod     = (pongWait * 9) / 10
-	maxMessageSize = 512
+	maxMessageSize = 4096 // Increased from 512
 )
 
 var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
+	ReadBufferSize:  4096, // Increased
+	WriteBufferSize: 4096, // Increased
 	CheckOrigin: func(r *http.Request) bool {
 		return true // For development
 	},
@@ -78,6 +78,8 @@ func (c *Client) readPump() {
 func (c *Client) handleAction(msg WSMessage) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
+	log.Printf("WS Action received: %s from %s", msg.Action, c.ID)
 
 	switch msg.Action {
 	case "signup":
@@ -146,6 +148,96 @@ func (c *Client) handleAction(msg WSMessage) {
 			"history": user.BalanceHistory,
 		})
 
+	case "update_balance":
+		if c.UserID.IsZero() {
+			c.sendError("update_balance", "Unauthorized")
+			return
+		}
+		var data struct {
+			Amount float64 `json:"amount"`
+			Source string  `json:"source"`
+		}
+		if err := json.Unmarshal(msg.Data, &data); err != nil {
+			c.sendError("update_balance", "Invalid data")
+			return
+		}
+		err := c.Hub.UserRepo.UpdateBalance(ctx, c.UserID, data.Amount, data.Source)
+		if err != nil {
+			c.sendError("update_balance", "Failed to update balance")
+			return
+		}
+		// Fetch new balance to return
+		newBalance, _ := c.Hub.UserRepo.GetBalance(ctx, c.UserID)
+		c.sendSuccess("balance_update", map[string]interface{}{
+			"balance": newBalance,
+		})
+
+	case "get_rooms":
+		rooms := c.Hub.GetRoomList()
+		log.Printf("Sending %d rooms to client %s", len(rooms), c.ID)
+		c.sendSuccess("get_rooms", rooms)
+
+	case "join_room":
+		var joinData struct {
+			RoomID string `json:"room_id"`
+		}
+		if err := json.Unmarshal(msg.Data, &joinData); err != nil {
+			c.sendError("join_room", "Invalid join data")
+			return
+		}
+		room, ok := c.Hub.GetRoom(joinData.RoomID)
+		if !ok {
+			c.sendError("join_room", "Room not found")
+			return
+		}
+		c.sendSuccess("join_room", room)
+
+	case "sit":
+		var sitData struct {
+			RoomID string `json:"room_id"`
+			Seat   int    `json:"seat"`
+		}
+		if err := json.Unmarshal(msg.Data, &sitData); err != nil {
+			c.sendError("sit", "Invalid sit data")
+			return
+		}
+
+		// Check if room exists first
+		_, ok := c.Hub.GetRoom(sitData.RoomID)
+		if !ok {
+			c.sendError("sit", "Room not found")
+			return
+		}
+
+		// Unmarshal full user to get balance
+		user, _ := c.Hub.UserRepo.GetUser(ctx, c.UserID)
+
+		player := models.Player{
+			ID:       c.UserID.Hex(),
+			Username: user.Username,
+			Balance:  user.Balance,
+			Position: sitData.Seat,
+			InGame:   true,
+		}
+
+		c.Hub.SitPlayer(sitData.RoomID, sitData.Seat, player)
+
+	case "poker_action":
+		var actionData struct {
+			RoomID string             `json:"room_id"`
+			Action models.PokerAction `json:"action"`
+		}
+		if err := json.Unmarshal(msg.Data, &actionData); err != nil {
+			c.sendError("poker_action", "Invalid action data")
+			return
+		}
+
+		c.Hub.HandlePokerAction(actionData.RoomID, c.UserID.Hex(), actionData.Action)
+
+	case "standup":
+		c.Hub.RemovePlayerFromAllRooms(c.UserID.Hex())
+		c.sendSuccess("standup", nil)
+
 	default:
 		log.Printf("Unknown action: %s", msg.Action)
 	}
@@ -157,7 +249,12 @@ func (c *Client) sendSuccess(action string, data interface{}) {
 		Status: "success",
 		Data:   data,
 	}
-	b, _ := json.Marshal(resp)
+	b, err := json.Marshal(resp)
+	if err != nil {
+		log.Printf("Error marshalling success response: %v", err)
+		return
+	}
+	log.Printf("Sending WS Success: %s", string(b))
 	c.send <- b
 }
 
@@ -190,6 +287,7 @@ func (c *Client) writePump() {
 			if err != nil {
 				return
 			}
+			log.Printf("WS writePump: sending %d bytes to %s", len(message), c.ID)
 			w.Write(message)
 
 			n := len(c.send)
@@ -230,6 +328,7 @@ func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		ID:     userIDStr,
 		UserID: userID,
 	}
+
 	client.Hub.register <- client
 
 	go client.writePump()

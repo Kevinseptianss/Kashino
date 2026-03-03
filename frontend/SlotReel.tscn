@@ -10,15 +10,14 @@ signal reel_stopped(results)
 var icons = []
 var spinning = false
 var speed = 0.0
-var target_speed = 2000.0
+var target_speed = 3000.0
 var icon_scene = preload(\"res://SlotIcon.tscn\")
-var icon_height = 200 # Roughly scale * 512
+var icon_height = 200
 
 func _ready():
-	# Initialize with 5 icons (3 visible + 2 for buffer)
-	for i in range(5):
+	for i in range(7):
 		var icon = icon_scene.instantiate()
-		icon.position.y = i * icon_height
+		icon.position.y = (i - 2) * icon_height
 		icon.set_icon(randi() % 6)
 		container.add_child(icon)
 		icons.append(icon)
@@ -29,28 +28,41 @@ func spin():
 
 func stop():
 	spinning = false
-	# Snap to grid
-	for i in range(icons.size()):
-		icons[i].position.y = i * icon_height
+
+func _kick_tween():
+	speed = 0
+	for icon in icons:
+		icon.set_blur(0.0)
 	
+	var tween = create_tween()
+	tween.set_trans(Tween.TRANS_ELASTIC)
+	tween.set_ease(Tween.EASE_OUT)
+	tween.tween_property(container, \"position:y\", 20.0, 0.5).as_relative()
+	tween.tween_property(container, \"position:y\", -20.0, 0.3).as_relative()
+	
+	tween.finished.connect(_on_tween_finished)
+
+func _on_tween_finished():
 	var results = []
-	for i in range(1, 4): # The 3 visible ones
-		results.append(icons[i].type) # Need to add type to SlotIcon script
+	for i in range(2, 5):
+		results.append(icons[i].type)
 	reel_stopped.emit(results)
 
 func _process(delta):
-	if spinning or speed > 0:
+	if spinning or speed > 200:
+		var blur = clamp(speed / 10000.0, 0.0, 0.05)
 		for icon in icons:
 			icon.position.y += speed * delta
+			icon.set_blur(blur)
+			
 			if icon.position.y > icon_height * 4:
-				icon.position.y -= icon_height * 5
+				icon.position.y -= icon_height * 7
 				icon.set_icon(randi() % 6)
 		
 		if not spinning:
-			speed = lerp(speed, 0.0, delta * 5.0)
-			if speed < 100:
-				speed = 0
-				stop()
+			speed = lerp(speed, 0.0, delta * 4.0)
+			if speed <= 200:
+				_kick_tween()
 "
 
 [node name="SlotReel" type="Node2D"]

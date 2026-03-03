@@ -34,10 +34,8 @@ signal auth_complete
 var is_login_mode = true
 
 func _ready():
-	# Configure for Login initially
 	_update_ui()
 	
-	# Connect auth service signals
 	if has_node(\"/root/AuthService\"):
 		var auth = get_node(\"/root/AuthService\")
 		auth.login_success.connect(_on_auth_success)
@@ -45,7 +43,7 @@ func _ready():
 		auth.signup_success.connect(_on_auth_success)
 		auth.signup_failed.connect(_on_auth_failed)
 	else:
-		error_label.text = \"ERROR: AuthService not found! Please check Autoload settings.\"
+		error_label.text = \"ERROR: AuthService not found!\"
 		submit_btn.disabled = true
 
 func _update_ui():
@@ -74,7 +72,6 @@ func _on_submit_pressed():
 		auth.signup(username_input.text, email_input.text, password_input.text)
 
 func _on_auth_success(_user_data):
-	print(\"Auth success, closing login screen\")
 	auth_complete.emit()
 	queue_free()
 

@@ -20,12 +20,18 @@ script/source = "extends Control
 func _ready():
 	if has_node(\"/root/AuthService\"):
 		var auth = get_node(\"/root/AuthService\")
-		username_label.text = auth.current_user[\"username\"]
-		$VBox/BalanceCard/VBox/Label.text = auth.current_user[\"tier\"]
+		if not auth.current_user:
+			username_label.text = \"Not Logged In\"
+			return
+		
+		username_label.text = auth.current_user.get(\"username\", \"Guest\")
+		$VBox/BalanceCard/VBox/Label.text = auth.current_user.get(\"tier\", \"VIP Silver\")
 		_update_balance_display(auth.current_balance)
 		
-		auth.balance_updated.connect(_update_balance_display)
-		auth.history_received.connect(_display_history)
+		if not auth.balance_updated.is_connected(_update_balance_display):
+			auth.balance_updated.connect(_update_balance_display)
+		if not auth.history_received.is_connected(_display_history):
+			auth.history_received.connect(_display_history)
 		
 		# Request history
 		auth.get_history()
@@ -47,12 +53,16 @@ func _display_history(history):
 	for child in history_list.get_children():
 		child.queue_free()
 	
+	if not history:
+		return
+	
 	for item in history:
 		var label = Label.new()
-		var amount_str = str(item[\"amount\"])
-		if item[\"amount\"] > 0: amount_str = \"+\" + amount_str
-		label.text = \"%s: %s\" % [item[\"source\"], amount_str]
-		if item[\"amount\"] < 0:
+		var amount_val = item.get(\"amount\", 0)
+		var amount_str = str(amount_val)
+		if amount_val > 0: amount_str = \"+\" + amount_str
+		label.text = \"%s: %s\" % [item.get(\"source\", \"Unknown\"), amount_str]
+		if amount_val < 0:
 			label.add_theme_color_override(\"font_color\", Color.RED)
 		else:
 			label.add_theme_color_override(\"font_color\", Color.GREEN)
@@ -60,6 +70,16 @@ func _display_history(history):
 
 func _on_back_pressed():
 	queue_free()
+
+func _on_logout_pressed():
+	if has_node(\"/root/AuthService\"):
+		var auth = get_node(\"/root/AuthService\")
+		auth.clear_auth()
+		# Notify main to update UI
+		var main = get_tree().root.get_node(\"Main\")
+		if main:
+			main._on_logout()
+		queue_free()
 "
 
 [node name="ProfilePage" type="Control"]
@@ -144,4 +164,11 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 10
 
+[node name="LogoutBtn" type="Button" parent="VBox"]
+custom_minimum_size = Vector2(0, 50)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.3, 0.3, 1)
+text = "LOGOUT"
+
 [connection signal="pressed" from="VBox/Header/BackBtn" to="." method="_on_back_pressed"]
+[connection signal="pressed" from="VBox/LogoutBtn" to="." method="_on_logout_pressed"]

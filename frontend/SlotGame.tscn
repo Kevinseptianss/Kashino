@@ -1,38 +1,97 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=12 format=3]
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_slotbg"]
-bg_color = Color(0.05, 0.05, 0.07, 1)
-corner_radius_top_left = 20
-corner_radius_top_right = 20
-corner_radius_bottom_right = 20
-corner_radius_bottom_left = 20
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bg"]
+bg_color = Color(0.08, 0.08, 0.12, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_slot_window"]
+bg_color = Color(0.04, 0.04, 0.06, 1)
 border_width_left = 4
 border_width_top = 4
 border_width_right = 4
 border_width_bottom = 4
-border_color = Color(0.74, 0.58, 1, 0.5)
+border_color = Color(0.741, 0.576, 1, 0.3)
+corner_radius_top_left = 15
+corner_radius_top_right = 15
+corner_radius_bottom_right = 15
+corner_radius_bottom_left = 15
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_spin_normal"]
+bg_color = Color(0.4, 0.2, 0.8, 1)
+border_width_bottom = 8
+border_color = Color(0.2, 0.1, 0.4, 1)
+corner_radius_top_left = 20
+corner_radius_top_right = 20
+corner_radius_bottom_right = 20
+corner_radius_bottom_left = 20
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_spin_hover"]
+bg_color = Color(0.5, 0.3, 0.9, 1)
+border_width_bottom = 8
+border_color = Color(0.3, 0.15, 0.5, 1)
+corner_radius_top_left = 20
+corner_radius_top_right = 20
+corner_radius_bottom_right = 20
+corner_radius_bottom_left = 20
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_spin_pressed"]
+bg_color = Color(0.3, 0.1, 0.6, 1)
+border_width_bottom = 2
+border_color = Color(0.15, 0.05, 0.3, 1)
+corner_radius_top_left = 20
+corner_radius_top_right = 20
+corner_radius_bottom_right = 20
+corner_radius_bottom_left = 20
+expand_margin_top = 6
+
+[sub_resource type="Curve" id="Curve_particles"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(0.8, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="Gradient" id="Gradient_particles"]
+offsets = PackedFloat32Array(0, 0.2, 0.8, 1)
+colors = PackedColorArray(1, 1, 0, 0, 1, 1, 0, 1, 1, 0.8, 0, 1, 1, 1, 0, 0)
 
 [sub_resource type="GDScript" id="GDScript_game"]
 script/source = "extends Control
 
-@onready var reels_container = $VBox/Center/Reels
-@onready var spin_btn = $VBox/Controls/SpinBtn
-@onready var result_label = $VBox/Controls/ResultLabel
+@onready var reels_container = %Reels
+@onready var spin_btn = %SpinBtn
+@onready var result_label = %ResultLabel
+@onready var balance_label = %BalanceLabel
+@onready var coin_particles = %CoinParticles
+@onready var camera = %ShakeCamera
 
 var reels = []
 var reels_finished = 0
 var game_results = []
+var shaking = 0.0
+var auth = null
 
 func _ready():
+	if has_node(\"/root/AuthService\"):
+		auth = get_node(\"/root/AuthService\")
+		update_balance_display(auth.current_balance)
+		auth.balance_updated.connect(update_balance_display)
+	
 	for i in range(5):
 		var reel = preload(\"res://SlotReel.tscn\").instantiate()
-		reel.position.x = i * 140 # spacing
+		reel.position.x = i * 130
 		reels_container.add_child(reel)
 		reels.append(reel)
 		reel.reel_stopped.connect(_on_reel_stopped)
 
+func update_balance_display(amount):
+	balance_label.text = \"BALANCE: C \" + str(int(amount))
+
 func _on_spin_pressed():
 	if reels_finished < reels.size() and reels_finished > 0: return
+	
+	if auth and auth.current_balance < 100:
+		result_label.text = \"NOT ENOUGH BALANCE\"
+		return
+	
+	if auth:
+		auth.update_balance(-100, \"slot_spin\")
 	
 	reels_finished = 0
 	game_results.clear()
@@ -41,31 +100,24 @@ func _on_spin_pressed():
 	
 	for i in range(reels.size()):
 		var reel = reels[i]
-		# staggered start
-		get_tree().create_timer(i * 0.1).timeout.connect(reel.spin)
-		# staggered stop
-		get_tree().create_timer(2.0 + i * 0.3).timeout.connect(reel.stop)
+		get_tree().create_timer(i * 0.15).timeout.connect(reel.spin)
+		get_tree().create_timer(2.0 + i * 0.4).timeout.connect(reel.stop)
 
 func _on_reel_stopped(results):
 	reels_finished += 1
 	game_results.append(results)
+	shaking = 5.0
 	
 	if reels_finished == reels.size():
 		spin_btn.disabled = false
 		_check_wins()
 
 func _check_wins():
-	# Simple check: 3 or more of same icon in the middle row
 	var middle_row = []
 	for i in range(5):
-		middle_row.append(game_results[i][1]) # index 1 is middle
+		middle_row.append(game_results[i][1])
 	
-	# Transpose game_results if needed, but for middle row it's simple
-	var count = 1
 	var last_icon = middle_row[0]
-	var max_count = 1
-	
-	# Very basic win logic for demo
 	var matches = 1
 	for i in range(1, 5):
 		if middle_row[i] == last_icon:
@@ -74,11 +126,27 @@ func _check_wins():
 			break
 	
 	if matches >= 3:
-		result_label.text = \"WIN! %d MATCHES\" % matches
-		result_label.add_theme_color_override(\"font_color\", Color.GREEN)
+		var win_amount = 500
+		if matches == 4: win_amount = 2500
+		elif matches == 5: win_amount = 15000
+		
+		result_label.text = \"WIN! %d MATCHES (C %d)\" % [matches, win_amount]
+		result_label.modulate = Color(1, 0.9, 0)
+		shaking = 15.0
+		coin_particles.emitting = true
+		
+		if auth:
+			auth.update_balance(win_amount, \"slot_win\")
 	else:
-		result_label.text = \"TRY AGAIN\"
-		result_label.add_theme_color_override(\"font_color\", Color.GRAY)
+		result_label.text = \"SPIN AGAIN\"
+		result_label.modulate = Color(1, 1, 1, 0.6)
+
+func _process(delta):
+	if shaking > 0:
+		camera.offset = Vector2(randf_range(-shaking, shaking), randf_range(-shaking, shaking))
+		shaking = lerp(shaking, 0.0, delta * 8.0)
+	else:
+		camera.offset = Vector2.ZERO
 
 func _on_back_pressed():
 	queue_free()
@@ -93,84 +161,156 @@ grow_horizontal = 2
 grow_vertical = 2
 script = SubResource("GDScript_game")
 
-[node name="BG" type="ColorRect" parent="."]
+[node name="ShakeCamera" type="Camera2D" parent="."]
+unique_name_in_owner = true
+anchor_mode = 0
+
+[node name="Background" type="Panel" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.0196078, 0.0196078, 0.0392157, 1)
+theme_override_styles/panel = SubResource("StyleBoxFlat_bg")
 
-[node name="VBox" type="VBoxContainer" parent="."]
+[node name="MainLayout" type="VBoxContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 20.0
-offset_top = 40.0
-offset_right = -20.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/separation = 40
+theme_override_constants/separation = 0
 
-[node name="Header" type="HBoxContainer" parent="VBox"]
+[node name="TopNav" type="MarginContainer" parent="MainLayout"]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 40
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 20
+
+[node name="HBox" type="HBoxContainer" parent="MainLayout/TopNav"]
 layout_mode = 2
 
-[node name="BackBtn" type="Button" parent="VBox/Header"]
-custom_minimum_size = Vector2(80, 40)
+[node name="ExitBtn" type="Button" parent="MainLayout/TopNav/HBox"]
+custom_minimum_size = Vector2(100, 50)
 layout_mode = 2
-text = "Back"
+theme_override_font_sizes/font_size = 20
+text = "EXIT"
 
-[node name="Title" type="Label" parent="VBox/Header"]
+[node name="Spacer" type="Control" parent="MainLayout/TopNav/HBox"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "FRUIT SLOTS"
-horizontal_alignment = 1
-theme_override_font_sizes/font_size = 32
 
-[node name="Center" type="Control" parent="VBox"]
-custom_minimum_size = Vector2(0, 700)
+[node name="BalanceLabel" type="Label" parent="MainLayout/TopNav/HBox"]
+unique_name_in_owner = true
 layout_mode = 2
+text = "BALANCE: C 1,000"
+theme_override_colors/font_color = Color(1, 0.85, 0.2, 1)
+theme_override_font_sizes/font_size = 24
 
-[node name="SlotBG" type="Panel" parent="VBox/Center"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_slotbg")
+[node name="GameTitle" type="Label" parent="MainLayout"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.74, 0.58, 1, 1)
+theme_override_font_sizes/font_size = 48
+text = "SLOT MANIA"
+horizontal_alignment = 1
 
-[node name="Reels" type="Control" parent="VBox/Center"]
+[node name="ReelDisplay" type="MarginContainer" parent="MainLayout"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/margin_left = 15
+theme_override_constants/margin_top = 40
+theme_override_constants/margin_right = 15
+theme_override_constants/margin_bottom = 40
+
+[node name="SlotWindow" type="Panel" parent="MainLayout/ReelDisplay"]
+clip_children = 2
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_slot_window")
+
+[node name="Reels" type="Control" parent="MainLayout/ReelDisplay/SlotWindow"]
+unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -330.0
-offset_top = -300.0
-offset_right = 330.0
-offset_bottom = 300.0
+offset_left = -325.0
+offset_top = -240.0
+offset_right = 325.0
+offset_bottom = 240.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="Controls" type="VBoxContainer" parent="VBox"]
-layout_mode = 2
-theme_override_constants/separation = 20
+[node name="Vignette" type="ColorRect" parent="MainLayout/ReelDisplay/SlotWindow"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(1, 1, 1, 0.02)
 
-[node name="ResultLabel" type="Label" parent="VBox/Controls"]
+[node name="BottomControls" type="MarginContainer" parent="MainLayout"]
 layout_mode = 2
+theme_override_constants/margin_left = 40
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 40
+theme_override_constants/margin_bottom = 80
+
+[node name="VBox" type="VBoxContainer" parent="MainLayout/BottomControls"]
+layout_mode = 2
+theme_override_constants/separation = 30
+
+[node name="StatusSection" type="VBoxContainer" parent="MainLayout/BottomControls/VBox"]
+layout_mode = 2
+
+[node name="ResultLabel" type="Label" parent="MainLayout/BottomControls/VBox/StatusSection"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+text = "GOOD LUCK!"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 24
 
-[node name="SpinBtn" type="Button" parent="VBox/Controls"]
-custom_minimum_size = Vector2(250, 80)
+[node name="BetInfo" type="Label" parent="MainLayout/BottomControls/VBox/StatusSection"]
 layout_mode = 2
-size_flags_horizontal = 4
-theme_override_font_sizes/font_size = 28
+theme_override_colors/font_color = Color(0.5, 0.5, 0.6, 1)
+theme_override_font_sizes/font_size = 18
+text = "BET: 100"
+horizontal_alignment = 1
+
+[node name="SpinBtn" type="Button" parent="MainLayout/BottomControls/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 100)
+layout_mode = 2
+theme_override_font_sizes/font_size = 40
+theme_override_styles/normal = SubResource("StyleBoxFlat_spin_normal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_spin_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_spin_pressed")
 text = "SPIN"
 
-[connection signal="pressed" from="VBox/Header/BackBtn" to="." method="_on_back_pressed"]
-[connection signal="pressed" from="VBox/Controls/SpinBtn" to="." method="_on_spin_pressed"]
+[node name="CoinParticles" type="CPUParticles2D" parent="."]
+unique_name_in_owner = true
+position = Vector2(360, -50)
+emitting = false
+amount = 50
+lifetime = 3.0
+one_shot = true
+explosiveness = 0.5
+direction = Vector2(0, 1)
+spread = 45.0
+gravity = Vector2(0, 600)
+initial_velocity_min = 250.0
+initial_velocity_max = 600.0
+scale_amount_min = 15.0
+scale_amount_max = 25.0
+scale_amount_curve = SubResource("Curve_particles")
+color = Color(1, 0.84, 0, 1)
+color_ramp = SubResource("Gradient_particles")
+
+[connection signal="pressed" from="MainLayout/TopNav/HBox/ExitBtn" to="." method="_on_back_pressed"]
+[connection signal="pressed" from="MainLayout/BottomControls/VBox/SpinBtn" to="." method="_on_spin_pressed"]

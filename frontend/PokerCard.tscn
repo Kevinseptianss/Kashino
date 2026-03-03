@@ -1,0 +1,47 @@
+[gd_scene load_steps=3 format=3]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_card"]
+bg_color = Color(1, 1, 1, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+shadow_color = Color(0, 0, 0, 0.3)
+shadow_size = 2
+shadow_offset = Vector2(1, 1)
+
+[sub_resource type="GDScript" id="GDScript_card"]
+script/source = "extends Panel
+
+@onready var texture_rect = $TextureRect
+
+func set_card(suit, value):
+	# The assets use naming: ace_of_spades.png, 2_of_clubs.png, etc.
+	# value: \"2\", \"ace\", etc.
+	# suit: \"spades\", \"hearts\", etc.
+	var path = \"res://assets/cards/%s_of_%s.png\" % [value, suit]
+	texture_rect.texture = load(path)
+
+func set_back():
+	texture_rect.texture = load(\"res://assets/cards/back.png\")
+"
+
+[node name="PokerCard" type="Panel"]
+clip_contents = true
+custom_minimum_size = Vector2(65, 95)
+theme_override_styles/panel = SubResource("StyleBoxFlat_card")
+script = SubResource("GDScript_card")
+
+[node name="TextureRect" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 2.0
+offset_top = 2.0
+offset_right = -2.0
+offset_bottom = -2.0
+grow_horizontal = 2
+grow_vertical = 2
+expand_mode = 1
+stretch_mode = 5
