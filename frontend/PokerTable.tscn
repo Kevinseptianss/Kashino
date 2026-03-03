@@ -149,7 +149,9 @@ func _get_call_amount() -> int:
 	var my_id = auth.current_user[\"id\"]
 	var max_bet = 0
 	var my_bet = 0
-	for p in current_room[\"game_state\"][\"players\"]:
+	var players = current_room[\"game_state\"].get(\"players\", [])
+	if players == null: players = []
+	for p in players:
 		if p[\"last_bet\"] > max_bet:
 			max_bet = p[\"last_bet\"]
 		if p[\"id\"] == my_id:
@@ -166,7 +168,9 @@ func _refresh_ui():
 	var id = auth.current_user[\"id\"] if auth and auth.current_user else \"\"
 	var is_seated = false
 	var my_player = null
-	for p in current_room[\"game_state\"][\"players\"]:
+	var players = current_room[\"game_state\"].get(\"players\", [])
+	if players == null: players = []
+	for p in players:
 		if p[\"id\"] == id:
 			is_seated = true
 			my_player = p
@@ -177,6 +181,7 @@ func _refresh_ui():
 	info_label.text = current_room[\"name\"] + \" - \" + current_room[\"game_state\"][\"round\"].to_upper() + \" (\" + str(int(current_room[\"small_blind\"])) + \"/\" + str(int(current_room[\"big_blind\"])) + \")\"
 	
 	var winners = current_room[\"game_state\"].get(\"last_winners\", [])
+	if winners == null: winners = []
 	if current_room[\"game_state\"][\"round\"] == \"waiting\" and winners.size() > 0:
 		var names = []
 		var hand = \"\"
@@ -195,7 +200,7 @@ func _refresh_ui():
 		
 		winner_label.text = \", \".join(names) + \" WINS!\\n\" + hand
 		winner_label.show()
-	elif current_room[\"game_state\"][\"round\"] == \"waiting\" and current_room[\"game_state\"][\"players\"].size() >= 2:
+	elif current_room[\"game_state\"][\"round\"] == \"waiting\" and players.size() >= 2:
 		winner_label.text = \"HAND OVER - DIVIDING POT\"
 		winner_label.show()
 	else:
@@ -284,9 +289,8 @@ func _refresh_ui():
 
 	# Dealer Button
 	var dealer_idx = current_room[\"game_state\"].get(\"dealer_idx\", -1)
-	var d_players = current_room[\"game_state\"][\"players\"]
-	if dealer_idx >= 0 and dealer_idx < d_players.size():
-		var d_player = d_players[dealer_idx]
+	if dealer_idx >= 0 and dealer_idx < players.size():
+		var d_player = players[dealer_idx]
 		var d_seat_idx = d_player[\"position\"]
 		dealer_button.show()
 		var dealer_target = seats[d_seat_idx].global_position + Vector2(100, 20)
@@ -296,6 +300,7 @@ func _refresh_ui():
 
 	# Community Cards Reveal
 	var community = current_room[\"game_state\"].get(\"community\", [])
+	if community == null: community = []
 	var existing_community = community_container.get_child_count()
 	
 	if current_room[\"game_state\"][\"round\"] == \"waiting\":
@@ -328,7 +333,7 @@ func _refresh_ui():
 		call_btn.visible = (call_amt > 0)
 		var bb = int(current_room.get(\"big_blind\", 20))
 		var max_bet = 0
-		for p in current_room[\"game_state\"][\"players\"]:
+		for p in players:
 			if p[\"last_bet\"] > max_bet: max_bet = p[\"last_bet\"]
 		var min_raise = max_bet + bb
 		bet_slider.min_value = min_raise
@@ -363,7 +368,9 @@ func _send_action(action_type, amount = 0):
 		})
 
 func _get_player_at_seat(pos):
-	for p in current_room[\"game_state\"][\"players\"]:
+	var players = current_room[\"game_state\"].get(\"players\", [])
+	if players == null: return null
+	for p in players:
 		if p[\"position\"] == pos:
 			return p
 	return null

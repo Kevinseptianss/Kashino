@@ -68,10 +68,12 @@ func _on_single_room_update(room_data):
 		var btn = room_buttons[rid]
 		var sb = int(room_data.get(\"small_blind\", 0))
 		var bb = int(room_data.get(\"big_blind\", 0))
+		var players = room_data[\"game_state\"].get(\"players\", [])
+		if players == null: players = []
 		btn.text = \"%s (%d/%d) (%d/%d Players)\" % [
 			room_data[\"name\"], 
 			sb, bb,
-			room_data[\"game_state\"][\"players\"].size(), 
+			players.size(), 
 			room_data[\"max_players\"]
 		]
 	else:
@@ -92,10 +94,12 @@ func _create_room_item(room_data):
 	var sb = int(room_data.get(\"small_blind\", 0))
 	var bb = int(room_data.get(\"big_blind\", 0))
 	var btn = Button.new()
+	var players = room_data[\"game_state\"].get(\"players\", [])
+	if players == null: players = []
 	btn.text = \"%s (%d/%d) (%d/%d Players)\" % [
 		room_data[\"name\"], 
 		sb, bb,
-		room_data[\"game_state\"][\"players\"].size(), 
+		players.size(), 
 		room_data[\"max_players\"]
 	]
 	btn.custom_minimum_size = Vector2(0, 80)
