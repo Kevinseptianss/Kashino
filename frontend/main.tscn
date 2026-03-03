@@ -1,9 +1,8 @@
 [gd_scene load_steps=7 format=3]
 
 [ext_resource type="Texture2D" path="res://assets/casino_banner.png" id="1_banner"]
-[ext_resource type="Texture2D" path="res://assets/slot_machine_icon.png" id="2_slot"]
-[ext_resource type="Texture2D" path="res://assets/poker_icon.png" id="3_poker"]
-[ext_resource type="Texture2D" path="res://assets/slots/seven.png" id="slot_seven_new"]
+[ext_resource type="Texture2D" path="res://assets/slot_icon.png" id="2_slot_new"]
+[ext_resource type="Texture2D" path="res://assets/poker_icon.png" id="3_poker_new"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_header"]
 bg_color = Color(0.078, 0.078, 0.118, 1)
@@ -244,7 +243,7 @@ grow_vertical = 2
 [node name="Icon" type="TextureRect" parent="ContentRoot/ScrollArea/VBoxContainer/GameSection/Padding/GridContainer/SlotButton/SlotCard"]
 custom_minimum_size = Vector2(160, 160)
 layout_mode = 2
-texture = ExtResource("slot_seven_new")
+texture = ExtResource("2_slot_new")
 expand_mode = 1
 stretch_mode = 6
 
@@ -270,7 +269,7 @@ grow_vertical = 2
 [node name="Icon" type="TextureRect" parent="ContentRoot/ScrollArea/VBoxContainer/GameSection/Padding/GridContainer/PokerButton/PokerCard"]
 custom_minimum_size = Vector2(160, 160)
 layout_mode = 2
-texture = ExtResource("3_poker")
+texture = ExtResource("3_poker_new")
 expand_mode = 1
 stretch_mode = 6
 

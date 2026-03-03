@@ -222,7 +222,7 @@ func (h *Hub) HandlePokerAction(roomID string, userID string, action models.Poke
 }
 
 func (h *Hub) scheduleNextHand(roomID string) {
-	time.Sleep(5 * time.Second)
+	time.Sleep(10 * time.Second)
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	room, ok := h.Rooms[roomID]
