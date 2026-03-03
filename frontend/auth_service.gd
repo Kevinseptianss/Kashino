@@ -98,7 +98,7 @@ func login(username, password):
 	if err != OK:
 		login_failed.emit("Could not make login request")
 
-func signup(username, email, password):
+func signup(username, email, password, captcha_answer, captcha_expected):
 	var http_request = HTTPRequest.new()
 	add_child(http_request)
 	http_request.request_completed.connect(_on_signup_request_completed)
@@ -106,7 +106,9 @@ func signup(username, email, password):
 	var body = JSON.stringify({
 		"username": username,
 		"email": email,
-		"password": password
+		"password": password,
+		"captcha_answer": captcha_answer,
+		"captcha_expected": captcha_expected
 	})
 	
 	var headers = ["Content-Type: application/json"]

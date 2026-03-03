@@ -32,12 +32,26 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var user models.User
-	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
+	var req struct {
+		models.User
+		CaptchaAnswer   string `json:"captcha_answer"`
+		CaptchaExpected string `json:"captcha_expected"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
+	// Validate CAPTCHA
+	if req.CaptchaAnswer == "" || req.CaptchaAnswer != req.CaptchaExpected {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid CAPTCHA code"})
+		return
+	}
+
+	user := req.User
 	// Hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 	if err != nil {
