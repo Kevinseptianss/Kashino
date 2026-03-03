@@ -53,20 +53,88 @@ func _display_history(history):
 	for child in history_list.get_children():
 		child.queue_free()
 	
-	if not history:
+	if not history or history.size() == 0:
+		var empty = Label.new()
+		empty.text = \"No history available\"
+		empty.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		empty.modulate = Color(1, 1, 1, 0.4)
+		history_list.add_child(empty)
 		return
 	
+	# Show latest first
+	history.reverse()
+	
 	for item in history:
-		var label = Label.new()
+		var card = PanelContainer.new()
+		var card_style = get_theme_stylebox(\"panel\", \"BalanceCard\").duplicate()
+		card_style.bg_color = Color(1, 1, 1, 0.03)
+		card_style.content_margin_left = 15
+		card_style.content_margin_right = 15
+		card_style.content_margin_top = 10
+		card_style.content_margin_bottom = 10
+		card.add_theme_stylebox_override(\"panel\", card_style)
+		card.mouse_filter = Control.MOUSE_FILTER_PASS
+		history_list.add_child(card)
+		
+		var hbox = HBoxContainer.new()
+		hbox.mouse_filter = Control.MOUSE_FILTER_PASS
+		card.add_child(hbox)
+		
+		var v_info = VBoxContainer.new()
+		v_info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		v_info.mouse_filter = Control.MOUSE_FILTER_PASS
+		hbox.add_child(v_info)
+		
+		var source_label = Label.new()
+		var source = item.get(\"source\", \"Unknown\")
+		source_label.text = source.to_upper().replace(\"_\", \" \")
+		source_label.add_theme_font_size_override(\"font_size\", 16)
+		v_info.add_child(source_label)
+		
+		var date_label = Label.new()
+		var ts = item.get(\"timestamp\", 0)
+		if ts is Dictionary and ts.has(\"$date\"): 
+			ts = ts[\"$date\"]
+		
+		var formatted_date = _format_timestamp(ts)
+		if formatted_date != \"\":
+			date_label.text = formatted_date
+			date_label.add_theme_font_size_override(\"font_size\", 12)
+			date_label.modulate = Color(0.6, 0.6, 0.6)
+			v_info.add_child(date_label)
+		
+		var amount_label = Label.new()
 		var amount_val = item.get(\"amount\", 0)
-		var amount_str = str(amount_val)
+		var amount_str = str(int(amount_val))
 		if amount_val > 0: amount_str = \"+\" + amount_str
-		label.text = \"%s: %s\" % [item.get(\"source\", \"Unknown\"), amount_str]
+		amount_label.text = amount_str
+		amount_label.add_theme_font_size_override(\"font_size\", 18)
 		if amount_val < 0:
-			label.add_theme_color_override(\"font_color\", Color.RED)
+			amount_label.add_theme_color_override(\"font_color\", Color(1, 0.4, 0.4))
 		else:
-			label.add_theme_color_override(\"font_color\", Color.GREEN)
-		history_list.add_child(label)
+			amount_label.add_theme_color_override(\"font_color\", Color(0.4, 1, 0.4))
+		hbox.add_child(amount_label)
+
+func _format_timestamp(ts):
+	if ts == null or str(ts) == \"\" or str(ts) == \"0\": 
+		return \"\"
+	
+	var unix_time = 0.0
+	var ts_str = str(ts)
+	
+	if ts is String:
+		if ts_str.is_valid_float() or ts_str.is_valid_int():
+			unix_time = float(ts_str) / 1000.0
+		else:
+			# Try parsing ISO8601 or similar
+			unix_time = Time.get_unix_time_from_datetime_string(ts_str)
+	elif ts is float or ts is int:
+		unix_time = float(ts) / 1000.0
+	
+	if unix_time <= 0: return \"\"
+	
+	var dict = Time.get_datetime_dict_from_unix_time(int(unix_time))
+	return \"%04d-%02d-%02d %02d:%02d\" % [dict.year, dict.month, dict.day, dict.hour, dict.minute]
 
 func _on_back_pressed():
 	queue_free()
@@ -152,17 +220,20 @@ theme_override_colors/font_color = Color(1, 0.843137, 0, 1)
 
 [node name="HistoryLabel" type="Label" parent="VBox"]
 layout_mode = 2
-text = "Transaction History"
-theme_override_font_sizes/font_size = 18
+theme_override_colors/font_color = Color(0.74, 0.58, 1, 1)
+theme_override_font_sizes/font_size = 20
+text = "TRANSACTION HISTORY"
 
 [node name="Scroll" type="ScrollContainer" parent="VBox"]
 layout_mode = 2
 size_flags_vertical = 3
+horizontal_scroll_mode = 0
+vertical_scroll_mode = 1
 
 [node name="HistoryList" type="VBoxContainer" parent="VBox/Scroll"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 10
+theme_override_constants/separation = 12
 
 [node name="LogoutBtn" type="Button" parent="VBox"]
 custom_minimum_size = Vector2(0, 50)
