@@ -27,6 +27,7 @@ var _card_animation_index: int = 0
 @onready var check_btn = %CheckBtn
 @onready var call_btn = %CallBtn
 @onready var raise_btn = %RaiseBtn
+@onready var all_in_btn = %AllInBtn
 @onready var winner_label = %WinnerLabel
 @onready var standup_btn = %StandUpBtn
 @onready var bet_slider = %BetSlider
@@ -56,6 +57,15 @@ func _ready():
 	)
 	raise_btn.pressed.connect(func():
 		_send_action(\"raise\", int(bet_slider.value))
+	)
+	all_in_btn.pressed.connect(func():
+		var id = auth.current_user[\"id\"] if auth and auth.current_user else \"\"
+		var players = current_room[\"game_state\"].get(\"players\", [])
+		for p in players:
+			if p[\"id\"] == id:
+				var total = int(p[\"balance\"]) + int(p[\"last_bet\"])
+				_send_action(\"raise\", total)
+				break
 	)
 	standup_btn.pressed.connect(_on_standup_pressed)
 	bet_slider.value_changed.connect(_on_bet_slider_changed)
@@ -975,6 +985,13 @@ custom_minimum_size = Vector2(120, 70)
 layout_mode = 2
 text = "RAISE TO
 (C 20)"
+
+[node name="AllInBtn" type="Button" parent="Controls/HBox" unique_id=2018623414]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 70)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.45, 0.45, 1)
+text = "ALL IN"
 
 [connection signal="pressed" from="Header/HBox/BackBtn" to="." method="_on_back_pressed"]
 [connection signal="pressed" from="Seats/Seat0/SitBtn" to="." method="_on_sit_pressed" binds= [0]]

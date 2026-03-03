@@ -21,18 +21,25 @@ var url = "ws://localhost:9090/ws"
 var ws_connected = false
 var auth_file = "user://auth.cfg"
 var _last_login_data = {"u":"","p":""}
+var is_side_by_side = false
+var instance_count = 1
+var instance_index = 0
 
 func _ready():
 	process_mode = PROCESS_MODE_ALWAYS
 	
 	# Support multiple profiles for local testing
-	# Usage: godot -- --profile=player1
+	# Usage: godot -- --profile=player1 --side-by-side=2
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--profile="):
 			var profile_name = arg.split("=")[1]
+			instance_index = int(profile_name) - 1 # Assuming numeric profiles for positioning
 			auth_file = "user://auth_" + profile_name + ".cfg"
 			print("AuthService: Using profile: ", profile_name, " (", auth_file, ")")
-			break
+		elif arg.begins_with("--side-by-side="):
+			is_side_by_side = true
+			instance_count = int(arg.split("=")[1])
+			print("AuthService: Side-by-side mode enabled (Count: ", instance_count, ")")
 
 func _connect_to_ws():
 	var ws_url = url + "?user_id=" + str(current_user["id"])

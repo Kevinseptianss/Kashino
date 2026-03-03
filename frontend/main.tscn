@@ -21,10 +21,30 @@ script/source = "extends Control
 @onready var status_text = $ContentRoot/Header/MarginContainer/HBoxContainer/StatusSection/Text
 
 func _ready():
-	DisplayServer.window_set_size(Vector2i(720, 1280))
-	var screen_size = DisplayServer.screen_get_size()
-	var window_size = DisplayServer.window_get_size()
-	DisplayServer.window_set_position((screen_size - window_size) / 2)
+	var auth = get_node_or_null("/root/AuthService")
+	var window_size = Vector2i(720, 1280)
+	
+	if auth and auth.is_side_by_side:
+		var screen_size = DisplayServer.screen_get_size()
+		# Scale down if too many instances
+		var scale_factor = 1.0
+		var total_width_needed = window_size.x * auth.instance_count
+		
+		if total_width_needed > screen_size.x:
+			scale_factor = float(screen_size.x) / float(total_width_needed)
+			window_size = Vector2i(int(window_size.x * scale_factor), int(window_size.y * scale_factor))
+		
+		DisplayServer.window_set_size(window_size)
+		
+		# Position side by side
+		var start_x = (screen_size.x - (window_size.x * auth.instance_count)) / 2
+		var pos_x = start_x + (window_size.x * auth.instance_index)
+		var pos_y = (screen_size.y - window_size.y) / 2
+		DisplayServer.window_set_position(Vector2i(pos_x, pos_y))
+	else:
+		DisplayServer.window_set_size(window_size)
+		var screen_size = DisplayServer.screen_get_size()
+		DisplayServer.window_set_position((screen_size - window_size) / 2)
 
 	_on_logout()
 	
