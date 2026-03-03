@@ -236,10 +236,13 @@ func _refresh_ui():
 			
 			# PLAYER CARDS SEQUENTIAL REVEAL
 			var player_cards = player.get(\"cards\", [])
-			var is_playing = current_room[\"game_state\"][\"round\"] != \"waiting\"
+			var is_waiting = current_room[\"game_state\"][\"round\"] == \"waiting\"
 			var current_card_count = card_hbox.get_child_count()
 			
-			if is_playing:
+			if player.get(\"is_folded\", false):
+				# Immediately clear cards if folded
+				for child in card_hbox.get_children(): child.queue_free()
+			elif player[\"in_game\"]:
 				var target_count = 2
 				if player_cards.size() > 0: target_count = player_cards.size()
 				
@@ -249,7 +252,7 @@ func _refresh_ui():
 						var card = preload(\"res://PokerCard.tscn\").instantiate()
 						card_hbox.add_child(card)
 						if player_cards.size() > j:
-							if player[\"id\"] == auth.current_user[\"id\"] or current_room[\"game_state\"][\"round\"] == \"showdown\":
+							if player[\"id\"] == auth.current_user[\"id\"] or current_room[\"game_state\"][\"round\"] == \"showdown\" or is_waiting:
 								card.set_card(player_cards[j][\"suit\"], player_cards[j][\"value\"])
 							else:
 								card.set_back()
@@ -262,8 +265,12 @@ func _refresh_ui():
 						tween.tween_property(card, \"modulate:a\", 1.0, 0.2)
 						tween.tween_property(card, \"scale\", Vector2.ONE, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 						await get_tree().create_timer(0.2).timeout
-			else:
-				for child in card_hbox.get_children(): child.queue_free()
+				elif current_card_count == target_count and (is_waiting or current_room[\"game_state\"][\"round\"] == \"showdown\"):
+					# Reveal existing cards at showdown or end of hand
+					for j in range(current_card_count):
+						var card = card_hbox.get_child(j)
+						if player_cards.size() > j:
+							card.set_card(player_cards[j][\"suit\"], player_cards[j][\"value\"])
 		else:
 			seat.get_node(\"Label\").text = \"Empty\"
 			seat.get_node(\"SitBtn\").visible = not is_seated
@@ -275,9 +282,12 @@ func _refresh_ui():
 
 	# Dealer Button
 	var dealer_idx = current_room[\"game_state\"].get(\"dealer_idx\", -1)
-	if dealer_idx >= 0 and dealer_idx < seats.size():
+	var d_players = current_room[\"game_state\"][\"players\"]
+	if dealer_idx >= 0 and dealer_idx < d_players.size():
+		var d_player = d_players[dealer_idx]
+		var d_seat_idx = d_player[\"position\"]
 		dealer_button.show()
-		var dealer_target = seats[dealer_idx].global_position + Vector2(100, 20)
+		var dealer_target = seats[d_seat_idx].global_position + Vector2(100, 20)
 		dealer_button.global_position = dealer_target
 	else:
 		dealer_button.hide()

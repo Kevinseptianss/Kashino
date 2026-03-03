@@ -188,6 +188,10 @@ func nextTurn(room *models.Room, bm BalanceManager) {
 			activeCount++
 		}
 	}
+	if activeCount <= 1 {
+		EndHand(room, bm)
+		return
+	}
 
 	// Check if betting is settled
 	maxBet := 0.0
