@@ -386,8 +386,13 @@ func (h *Hub) HandleChatMessage(msg models.ChatMessage) {
 	}
 
 	// Broadcast to all clients
+	action := "chat_message"
+	if msg.RoomID == "public" {
+		action = "public_chat_message"
+	}
+
 	resp := WSResponse{
-		Action: "chat_message",
+		Action: action,
 		Status: "success",
 		Data:   msg,
 	}
@@ -404,8 +409,13 @@ func (h *Hub) SendChatHistory(client *Client, roomID string) {
 		return
 	}
 
+	action := "chat_history"
+	if roomID == "public" {
+		action = "public_chat_history"
+	}
+
 	resp := WSResponse{
-		Action: "chat_history",
+		Action: action,
 		Status: "success",
 		Data:   map[string]interface{}{"room_id": roomID, "messages": history},
 	}

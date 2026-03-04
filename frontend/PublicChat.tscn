@@ -1,0 +1,153 @@
+[gd_scene load_steps=4 format=3 uid="uid://public_chat_scene"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bg"]
+bg_color = Color(0.06, 0.06, 0.09, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_input_bg"]
+bg_color = Color(0.12, 0.12, 0.18, 1)
+corner_radius_top_left = 20
+corner_radius_top_right = 20
+corner_radius_bottom_right = 20
+corner_radius_bottom_left = 20
+
+[sub_resource type="GDScript" id="GDScript_public_chat"]
+script/source = "extends Control
+
+var auth = null
+var _messages = []
+
+@onready var chat_log = %ChatLog
+@onready var chat_input = %ChatInput
+@onready var send_btn = %SendBtn
+@onready var back_btn = %BackBtn
+@onready var login_notice = %LoginNotice
+@onready var input_row = %InputRow
+
+func _ready():
+	if has_node(\"/root/AuthService\"):
+		auth = get_node(\"/root/AuthService\")
+		auth.public_chat_message_received.connect(_on_message)
+		auth.public_chat_history_received.connect(_on_history)
+		auth.request_public_chat_history()
+	
+	var is_logged = auth and auth.current_user
+	input_row.visible = is_logged
+	login_notice.visible = not is_logged
+	
+	back_btn.pressed.connect(_on_back_pressed)
+	send_btn.pressed.connect(_on_send_pressed)
+	chat_input.text_submitted.connect(_on_input_submitted)
+
+func _on_back_pressed():
+	queue_free()
+
+func _on_send_pressed():
+	var msg = chat_input.text.strip_edges()
+	if msg == \"\" or not auth or not auth.current_user: return
+	auth.send_public_chat(msg)
+	chat_input.text = \"\"
+
+func _on_input_submitted(_text):
+	_on_send_pressed()
+
+func _on_message(data):
+	_messages.append(data)
+	_render_message(data.get(\"username\", \"Unknown\"), data.get(\"message\", \"\"))
+
+func _on_history(data):
+	chat_log.clear()
+	_messages = data.get(\"messages\", [])
+	for m in _messages:
+		_render_message(m.get(\"username\", \"Unknown\"), m.get(\"message\", \"\"))
+
+func _render_message(username, message):
+	var color = \"#aaaaee\"
+	if auth and auth.current_user and username == auth.current_user[\"username\"]:
+		color = \"#ffe066\"
+	chat_log.append_text(\"[color=\" + color + \"][b]\" + username + \":[/b][/color] \" + message + \"\\n\")
+"
+
+[node name="PublicChat" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = SubResource("GDScript_public_chat")
+
+[node name="BGPanel" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_bg")
+
+[node name="Padding" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 15
+
+[node name="VBox" type="VBoxContainer" parent="Padding"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Header" type="HBoxContainer" parent="Padding/VBox"]
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="BackBtn" type="Button" parent="Padding/VBox/Header"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(60, 0)
+layout_mode = 2
+text = "< Back"
+
+[node name="Title" type="Label" parent="Padding/VBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+theme_override_font_sizes/font_size = 22
+text = "Public Chat"
+horizontal_alignment = 1
+
+[node name="ChatLog" type="RichTextLabel" parent="Padding/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+bbcode_enabled = true
+scroll_following = true
+
+[node name="LoginNotice" type="Label" parent="Padding/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 16
+text = "Login to participate in the chat."
+horizontal_alignment = 1
+
+[node name="InputRow" type="HBoxContainer" parent="Padding/VBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 55)
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="ChatInput" type="LineEdit" parent="Padding/VBox/InputRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Say something..."
+
+[node name="SendBtn" type="Button" parent="Padding/VBox/InputRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(55, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "➤"

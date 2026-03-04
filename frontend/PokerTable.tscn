@@ -43,8 +43,9 @@ var _chat_expanded = false
 var _chat_messages = []
 
 @onready var chat_container = %ChatContainer
-@onready var chat_expand_btn = %ChatExpandBtn
+@onready var chat_overlay_btn = %ChatOverlayBtn
 @onready var chat_log = %ChatLog
+@onready var chat_input_box = %ChatInputBox
 @onready var chat_input = %ChatInput
 @onready var chat_send_btn = %ChatSendBtn
 
@@ -60,8 +61,8 @@ func _ready():
 		
 		# Join the room
 		auth._send_ws_message(\"join_room\", {\"room_id\": room_id})
-	if chat_expand_btn:
-		chat_expand_btn.pressed.connect(_on_chat_expand_toggled)
+	if chat_overlay_btn:
+		chat_overlay_btn.pressed.connect(_on_chat_expand_toggled)
 		
 	fold_btn.pressed.connect(func(): _send_action(\"fold\"))
 	check_btn.pressed.connect(func(): _send_action(\"check\"))
@@ -420,7 +421,32 @@ func _refresh_ui():
 
 	var id_turn = auth.current_user[\"id\"] if auth and auth.current_user else \"\"
 	var my_turn = current_room[\"game_state\"][\"current_turn\"] == id_turn
-	controls.visible = my_turn
+	if controls.visible != my_turn:
+		var c_tween = create_tween().set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+		if my_turn:
+			controls.modulate.a = 0
+			controls.visible = true
+			c_tween.tween_property(controls, \"modulate:a\", 1.0, 0.4)
+			c_tween.parallel().tween_property(controls, \"offset_top\", -180.0, 0.4).from(-130.0)
+		else:
+			c_tween.tween_property(controls, \"modulate:a\", 0.0, 0.3)
+			c_tween.parallel().tween_property(controls, \"offset_top\", -130.0, 0.3)
+			c_tween.tween_callback(func(): controls.visible = false)
+	
+	if chat_input_box:
+		var target_top: float
+		var target_bottom: float
+		if my_turn:
+			target_top = -250.0
+			target_bottom = -200.0
+		else:
+			target_top = -70.0
+			target_bottom = -20.0
+		
+		if chat_input_box.offset_top != target_top:
+			var tween = create_tween().set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+			tween.tween_property(chat_input_box, \"offset_top\", target_top, 0.3)
+			tween.parallel().tween_property(chat_input_box, \"offset_bottom\", target_bottom, 0.3)
 	
 	if my_turn and my_player:
 		var call_amt = _get_call_amount()
@@ -542,7 +568,6 @@ func _refresh_chat_log():
 
 func _on_chat_expand_toggled():
 	_chat_expanded = not _chat_expanded
-	chat_expand_btn.text = \"[-]\" if _chat_expanded else \"[+]\"
 	
 	if _chat_expanded:
 		chat_container.custom_minimum_size.y = 400
@@ -1120,15 +1145,13 @@ text = "CHECK"
 unique_name_in_owner = true
 custom_minimum_size = Vector2(120, 70)
 layout_mode = 2
-text = "CALL
-(C 0)"
+text = "CALL (C 0)"
 
 [node name="RaiseBtn" type="Button" parent="Controls/HBox" unique_id=2018623413]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(120, 70)
 layout_mode = 2
-text = "RAISE TO
-(C 20)"
+text = "RAISE TO (C 20)"
 
 [node name="AllInBtn" type="Button" parent="Controls/HBox" unique_id=2018623414]
 unique_name_in_owner = true
@@ -1154,39 +1177,34 @@ offset_right = 320.0
 offset_bottom = 230.0
 theme_override_styles/panel = SubResource("StyleBoxFlat_chat_bg")
 
-[node name="VBox" type="VBoxContainer" parent="ChatContainer"]
-layout_mode = 2
-
-[node name="Header" type="HBoxContainer" parent="ChatContainer/VBox"]
-layout_mode = 2
-alignment = 2
-
-[node name="ChatExpandBtn" type="Button" parent="ChatContainer/VBox/Header"]
+[node name="ChatOverlayBtn" type="Button" parent="ChatContainer"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
-text = "[+]"
 flat = true
+
+[node name="VBox" type="VBoxContainer" parent="ChatContainer"]
+layout_mode = 2
+mouse_filter = 2
 
 [node name="ChatLog" type="RichTextLabel" parent="ChatContainer/VBox"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
+mouse_filter = 2
 bbcode_enabled = true
 scroll_following = true
 
 [node name="ChatInputBox" type="HBoxContainer" parent="."]
 unique_name_in_owner = true
 layout_mode = 1
-anchors_preset = 7
-anchor_left = 0.5
+anchors_preset = 12
 anchor_top = 1.0
-anchor_right = 0.5
+anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = -200.0
-offset_top = -240.0
-offset_right = 200.0
-offset_bottom = -200.0
+offset_left = 20.0
+offset_top = -70.0
+offset_right = -20.0
+offset_bottom = -20.0
 grow_horizontal = 2
 grow_vertical = 0
 
@@ -1198,9 +1216,10 @@ placeholder_text = "Type a message..."
 
 [node name="ChatSendBtn" type="Button" parent="ChatInputBox"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(60, 0)
+custom_minimum_size = Vector2(50, 0)
 layout_mode = 2
-text = "SEND"
+theme_override_font_sizes/font_size = 20
+text = "➤"
 
 [connection signal="text_submitted" from="ChatInputBox/ChatInput" to="." method="_on_chat_input_submitted"]
 [connection signal="pressed" from="ChatInputBox/ChatSendBtn" to="." method="_on_chat_send_pressed"]

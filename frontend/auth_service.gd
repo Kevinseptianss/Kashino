@@ -14,6 +14,8 @@ signal player_stood_up()
 signal room_update(room_data)
 signal chat_message_received(chat_data)
 signal chat_history_received(history_data)
+signal public_chat_message_received(chat_data)
+signal public_chat_history_received(history_data)
 
 var base_url = "https://api.kashino.my.id"
 var current_user = null
@@ -227,12 +229,26 @@ func _handle_ws_message(json_str):
 		"chat_history":
 			if status == "success":
 				chat_history_received.emit(data)
+		"public_chat_message":
+			if status == "success":
+				public_chat_message_received.emit(data)
+		"public_chat_history":
+			if status == "success":
+				public_chat_history_received.emit(data)
 
 func send_chat(room_id, message):
 	_send_ws_message("chat_message", {
 		"room_id": room_id,
 		"message": message
 	})
+
+func send_public_chat(message):
+	_send_ws_message("public_chat_message", {
+		"message": message
+	})
+
+func request_public_chat_history():
+	_send_ws_message("public_chat_history", {})
 
 func _send_ws_message(action, data):
 	if socket.get_ready_state() != WebSocketPeer.STATE_OPEN:

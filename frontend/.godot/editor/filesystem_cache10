@@ -1,5 +1,5 @@
 72322a848ab928aa5c89f0cb78209805
-::res://::1772610350
+::res://::1772619032
 auth_service.gd::GDScript::8611867580553793874::1772608924::0::1::::<>Node<><>0<>0<><>::
 export_presets.cfg::TextFile::-1::1772610337::0::1::::<><><>0<>0<><>::
 icon.svg::CompressedTexture2D::6212737564808651989::1772514943::1772517909::1::::<><><>0<>0<>f44f801fd3b8b16b12f6d091782e361b<>res://.godot/imported/icon.svg-218a8f2b3041327d8a5756f3a245f83b.ctex::
@@ -9,14 +9,16 @@ main_prev.tscn::PackedScene::-1::1772592698::0::1::::<><><>0<>0<><>::
 MenuPage.tscn::PackedScene::-1::1772560429::0::1::::<><><>0<>0<><>::
 PokerCard.tscn::PackedScene::-1::1772508151::0::1::::<><><>0<>0<><>::
 PokerRoomList.tscn::PackedScene::-1::1772545629::0::1::::<><><>0<>0<><>::
-PokerTable.tscn::PackedScene::8359075553876753865::1772608954::0::1::::<><><>0<>0<><>::res://assets/slots/background_pokertable.png
+PokerTable.tscn::PackedScene::8359075553876753865::1772618480::0::1::::<><><>0<>0<><>::res://assets/slots/background_pokertable.png
 ProfilePage.tscn::PackedScene::-1::1772560465::0::1::::<><><>0<>0<><>::
 SlotGame.tscn::PackedScene::-1::1772599019::0::1::::<><><>0<>0<><>::
 SlotIcon.tscn::PackedScene::-1::1772528289::0::1::::<><><>0<>0<><>::
 SlotReel.tscn::PackedScene::-1::1772530163::0::1::::<><><>0<>0<><>::
+SplashScreen.tscn::PackedScene::-1::1772619032::0::1::::<><><>0<>0<><>::
 websocket_client.gd::GDScript::2021442467865549780::1772560217::0::1::::<>Node<><>0<>0<><>::
-::res://assets/::1772517910
+::res://assets/::1772619005
 casino_banner.png::CompressedTexture2D::901783710808006571::1772432392::1772434244::1::::<><><>0<>0<>55c472ad82a38d57fc271c593217a463<>res://.godot/imported/casino_banner.png-b806ed65e0ae1d51ecc72fd9255e43f2.ctex::
+logo.png::CompressedTexture2D::6527560583475219711::1772561156::1772619203::1::::<><><>0<>0<>c6bcb774a55dbe955a4c436473b68d2c<>res://.godot/imported/logo.png-e2220799298e3631eb0e245316e0501a.ctex::
 poker_icon.png::CompressedTexture2D::4191831486102638229::1772514034::1772517910::1::::<><><>0<>0<>c6def659493687a6a61d324130d1c507<>res://.godot/imported/poker_icon.png-c448f8a19f2976f23a0d541af1916c89.ctex::
 slots_icon.png::CompressedTexture2D::8590734486442499433::1772514021::1772517910::1::::<><><>0<>0<>80c64b78ed23107e11e39a083bfada74<>res://.godot/imported/slots_icon.png-87fe4e98e159f113a402c73c4915281f.ctex::
 slot_machine_icon.png::CompressedTexture2D::7425114412858216874::1772432410::1772434244::1::::<><><>0<>0<>d85968865bd23f38482d5233ab5bd336<>res://.godot/imported/slot_machine_icon.png-77a8c8135985c9a334731ff11bd8c51e.ctex::

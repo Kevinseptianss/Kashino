@@ -30,11 +30,12 @@ var upgrader = websocket.Upgrader{
 }
 
 type Client struct {
-	Hub    *Hub
-	ID     string
-	UserID primitive.ObjectID
-	Conn   *websocket.Conn
-	send   chan []byte
+	Hub      *Hub
+	ID       string
+	UserID   primitive.ObjectID
+	Username string
+	Conn     *websocket.Conn
+	send     chan []byte
 }
 
 type WSMessage struct {
@@ -211,12 +212,39 @@ func (c *Client) handleAction(msg WSMessage) {
 			ID:        primitive.NewObjectID(),
 			RoomID:    chatData.RoomID,
 			UserID:    c.UserID.Hex(),
-			Username:  c.ID, // c.ID stores username
+			Username:  c.Username,
 			Message:   chatData.Message,
 			Timestamp: primitive.NewDateTimeFromTime(time.Now()),
 		}
 
 		c.Hub.HandleChatMessage(chatMsg)
+
+	case "public_chat_message":
+		if c.UserID.IsZero() {
+			c.sendError("public_chat_message", "Unauthorized")
+			return
+		}
+		var chatData struct {
+			Message string `json:"message"`
+		}
+		if err := json.Unmarshal(msg.Data, &chatData); err != nil {
+			c.sendError("public_chat_message", "Invalid chat data")
+			return
+		}
+
+		chatMsg := models.ChatMessage{
+			ID:        primitive.NewObjectID(),
+			RoomID:    "public",
+			UserID:    c.UserID.Hex(),
+			Username:  c.Username,
+			Message:   chatData.Message,
+			Timestamp: primitive.NewDateTimeFromTime(time.Now()),
+		}
+
+		c.Hub.HandleChatMessage(chatMsg)
+
+	case "public_chat_history":
+		c.Hub.SendChatHistory(c, "public")
 
 	case "sit":
 		var sitData struct {
@@ -375,16 +403,34 @@ func ServeWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 
 	userIDStr := r.URL.Query().Get("user_id")
 	var userID primitive.ObjectID
+	var username string
+
 	if userIDStr != "" {
 		userID, _ = primitive.ObjectIDFromHex(userIDStr)
+		if !userID.IsZero() {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			if user, err := hub.UserRepo.GetUser(ctx, userID); err == nil && user != nil {
+				username = user.Username
+			}
+		}
+	}
+
+	if username == "" {
+		if len(userIDStr) > 5 {
+			username = "User_" + userIDStr[:5]
+		} else {
+			username = "Guest"
+		}
 	}
 
 	client := &Client{
-		Hub:    hub,
-		Conn:   conn,
-		send:   make(chan []byte, 256),
-		ID:     userIDStr,
-		UserID: userID,
+		Hub:      hub,
+		Conn:     conn,
+		send:     make(chan []byte, 256),
+		ID:       userIDStr,
+		UserID:   userID,
+		Username: username,
 	}
 
 	client.Hub.register <- client

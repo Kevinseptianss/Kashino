@@ -145,6 +145,9 @@ func _on_auth_success(_user_data):
 	auth_complete.emit()
 	queue_free()
 
+func _on_back_pressed():
+	queue_free()
+
 func _on_auth_failed(msg):
 	error_label.text = msg
 "
@@ -166,6 +169,14 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_bg")
+
+[node name="BackBtn" type="Button" parent="."]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 100.0
+offset_bottom = 60.0
+text = "Back"
 
 [node name="VBox" type="VBoxContainer" parent="."]
 layout_mode = 1
@@ -276,3 +287,4 @@ text = "Don't have an account? Sign Up"
 [connection signal="pressed" from="VBox/Card/Margin/Form/CaptchaContainer/HBox/OTPBtn" to="." method="_on_send_otp_pressed"]
 [connection signal="pressed" from="VBox/Card/Margin/Form/SubmitBtn" to="." method="_on_submit_pressed"]
 [connection signal="pressed" from="VBox/Card/Margin/Form/SwitchModeBtn" to="." method="_on_switch_mode_pressed"]
+[connection signal="pressed" from="BackBtn" to="." method="_on_back_pressed"]
