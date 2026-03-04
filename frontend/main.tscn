@@ -67,23 +67,33 @@ func _ready():
 		poker_btn.pressed.connect(_on_poker_pressed)
 	
 	%WalletBtn.pressed.connect(_on_wallet_pressed)
-	%MenuBtn.pressed.connect(_on_wallet_pressed)
+	%MenuBtn.pressed.connect(_on_menu_pressed)
 
-func _on_wallet_pressed():
+func _ensure_logged_in() -> bool:
 	if has_node(\"/root/AuthService\"):
 		var auth = get_node(\"/root/AuthService\")
 		if not auth.current_user:
-			_on_login_btn_pressed() # Redirect to login if not logged in
-			return
-			
+			_on_login_btn_pressed()
+			return false
+	return true
+
+func _on_menu_pressed():
+	if not _ensure_logged_in(): return
+	var menu_page = preload(\"res://MenuPage.tscn\").instantiate()
+	add_child(menu_page)
+
+func _on_wallet_pressed():
+	if not _ensure_logged_in(): return
 	var profile_page = preload(\"res://ProfilePage.tscn\").instantiate()
 	add_child(profile_page)
 
 func _on_slot_pressed():
+	if not _ensure_logged_in(): return
 	var slot_game = preload(\"res://SlotGame.tscn\").instantiate()
 	add_child(slot_game)
 
 func _on_poker_pressed():
+	if not _ensure_logged_in(): return
 	var room_list = preload(\"res://PokerRoomList.tscn\").instantiate()
 	add_child(room_list)
 
@@ -119,6 +129,7 @@ func _on_connection_status_changed(online):
 
 func _on_profile_gui_input(event):
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		if not _ensure_logged_in(): return
 		var profile_page = preload(\"res://ProfilePage.tscn\").instantiate()
 		add_child(profile_page)
 "

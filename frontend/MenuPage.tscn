@@ -1,0 +1,121 @@
+[gd_scene load_steps=4 format=3]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bg"]
+bg_color = Color(0.0392157, 0.0392157, 0.0588235, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_card"]
+bg_color = Color(0.0784314, 0.0784314, 0.117647, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="GDScript" id="GDScript_menu"]
+script/source = "extends Control
+
+func _on_back_pressed():
+	queue_free()
+
+func _on_logout_pressed():
+	if has_node(\"/root/AuthService\"):
+		var auth = get_node(\"/root/AuthService\")
+		auth.clear_auth()
+		# Notify main to update UI
+		var main = get_tree().root.get_node(\"Main\")
+		if main:
+			main._on_logout()
+		queue_free()
+
+func _on_change_username_pressed():
+	print(\"Change Username pressed - Backend support pending\")
+
+func _on_change_password_pressed():
+	print(\"Change Password pressed - Backend support pending\")
+
+func _on_change_email_pressed():
+	print(\"Change Email pressed - Backend support pending\")
+"
+
+[node name="MenuPage" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = SubResource("GDScript_menu")
+
+[node name="BG" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_bg")
+
+[node name="VBox" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 30.0
+offset_top = 50.0
+offset_right = -30.0
+offset_bottom = -30.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 20
+
+[node name="Header" type="HBoxContainer" parent="VBox"]
+layout_mode = 2
+
+[node name="BackBtn" type="Button" parent="VBox/Header"]
+custom_minimum_size = Vector2(80, 40)
+layout_mode = 2
+text = "Back"
+
+[node name="Title" type="Label" parent="VBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Settings"
+horizontal_alignment = 2
+theme_override_font_sizes/font_size = 24
+
+[node name="Spacer" type="Control" parent="VBox"]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+
+[node name="BtnGroup" type="VBoxContainer" parent="VBox"]
+layout_mode = 2
+theme_override_constants/separation = 15
+
+[node name="ChangeUsernameBtn" type="Button" parent="VBox/BtnGroup"]
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
+text = "Change Username"
+
+[node name="ChangePasswordBtn" type="Button" parent="VBox/BtnGroup"]
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
+text = "Change Password"
+
+[node name="ChangeEmailBtn" type="Button" parent="VBox/BtnGroup"]
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
+text = "Change Email"
+
+[node name="Spacer2" type="Control" parent="VBox"]
+size_flags_vertical = 3
+
+[node name="LogoutBtn" type="Button" parent="VBox"]
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.3, 0.3, 1)
+text = "SIGN OUT"
+
+[connection signal="pressed" from="VBox/Header/BackBtn" to="." method="_on_back_pressed"]
+[connection signal="pressed" from="VBox/BtnGroup/ChangeUsernameBtn" to="." method="_on_change_username_pressed"]
+[connection signal="pressed" from="VBox/BtnGroup/ChangePasswordBtn" to="." method="_on_change_password_pressed"]
+[connection signal="pressed" from="VBox/BtnGroup/ChangeEmailBtn" to="." method="_on_change_email_pressed"]
+[connection signal="pressed" from="VBox/LogoutBtn" to="." method="_on_logout_pressed"]

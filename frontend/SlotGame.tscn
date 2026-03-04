@@ -213,6 +213,7 @@ func _check_wins():
 			row_objs.append(reels[c].get_visible_icon_objects()[r])
 		icon_grid.append(row_objs)
 
+	var winning_coords = []
 	for i in range(min(num_lines, lines.size())):
 		var line = lines[i]
 		var line_icons = []
@@ -236,10 +237,11 @@ func _check_wins():
 			total_win += win
 			win_details.append(\"LINE %d: %d MATCHES (C %d)\" % [i+1, matches, win])
 			
-			# Highlight winning icons
+			# Highlight winning icons and collect coords
 			for col in range(matches):
 				var row = line[col]
 				icon_grid[row][col].set_winning(true)
+				winning_coords.append([row, col])
 	
 	if total_win > 0:
 		result_label.text = \"WIN: C %d!\" % total_win
@@ -257,10 +259,19 @@ func _check_wins():
 	
 	# Send Log to Database
 	if auth:
+		# Use numerical indices for result grid
+		var int_grid = []
+		for c in range(5):
+			var col_ints = []
+			for type in game_results[c]:
+				col_ints.append(int(type))
+			int_grid.append(col_ints)
+
 		auth._send_ws_message(\"slot_log\", {
 			\"bet\": current_bet,
 			\"lines\": num_lines,
-			\"result\": logged_grid,
+			\"result\": int_grid,
+			\"winners\": winning_coords,
 			\"win_amount\": total_win
 		})
 

@@ -1,38 +1,80 @@
-version: '3.8'
+# version: '3.8' (obsolete)
 
 services:
   backend:
     build: ./backend
-    ports:
-      - "9090:9090"
     environment:
       - MONGO_URI=mongodb://mongodb:27018
       - PORT=9090
+      - SMTP_HOST=smtp-relay.brevo.com
+      - SMTP_PORT=587
+      - SMTP_USER=a3ec72001@smtp-brevo.com
+      - SMTP_PASS=YOUR_SMTP_PASS
+      - SMTP_FROM=admin@kashino.my.id
+    ports:
+      - "9090:9090"
     volumes:
       - ./backend:/app
     depends_on:
       - mongodb
+    networks:
+      - kashino-net
+
+  admin:
+    build: ./admin
+    environment:
+      - NODE_ENV=production
+      - HOSTNAME=0.0.0.0
+    ports:
+      - "3002:3000"
+    depends_on:
+      - backend
+    networks:
+      - kashino-net
+
+  landingpage:
+    build: ./landingpage
+    environment:
+      - NODE_ENV=production
+      - HOSTNAME=0.0.0.0
+    ports:
+      - "3003:3000"
+    depends_on:
+      - backend
+    networks:
+      - kashino-net
 
   mongodb:
     image: mongo:latest
     command: mongod --port 27018
-    ports:
-      - "27018:27018"
     volumes:
       - mongodb_data:/data/db
+    networks:
+      - kashino-net
 
   mongo-express:
     image: mongo-express:latest
     restart: always
-    ports:
-      - "9091:8081"
     environment:
       - ME_CONFIG_MONGODB_SERVER=mongodb
       - ME_CONFIG_MONGODB_PORT=27018
       - ME_CONFIG_BASICAUTH_USERNAME=admin
-      - ME_CONFIG_BASICAUTH_PASSWORD=pass
+      - ME_CONFIG_BASICAUTH_PASSWORD=Admin@123!
     depends_on:
       - mongodb
+    networks:
+      - kashino-net
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run --token eyJhIjoiNTg2NTQxMjljYTY1Yjc0MGQwZGM0MzcxN2Y5NGVjMzEiLCJ0IjoiMGNhMWZmYmQtYTJjYi00NGY0LWE1ZjYtMGM1MGQ5ZDhmODg4IiwicyI6Ik1qTmlOVFF6TUdVdE56TTFaUzAwTmpZMExUazBNMk10T0dJeFl6VTRZVEUzWWprdyJ9
+    restart: always
+    networks:
+      - kashino-net
+
+networks:
+  kashino-net:
+    driver: bridge
 
 volumes:
   mongodb_data:

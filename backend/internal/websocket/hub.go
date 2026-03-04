@@ -17,6 +17,7 @@ import (
 type Hub struct {
 	UserRepo       *repository.UserRepository
 	PokerRepo      *repository.PokerRepository
+	ChatRepo       *repository.ChatRepository
 	clients        map[*Client]bool
 	Rooms          map[string]*models.Room
 	broadcast      chan []byte
@@ -31,7 +32,7 @@ type balanceUpdateMsg struct {
 	Balance int64
 }
 
-func NewHub(userRepo *repository.UserRepository, pokerRepo *repository.PokerRepository) *Hub {
+func NewHub(userRepo *repository.UserRepository, pokerRepo *repository.PokerRepository, chatRepo *repository.ChatRepository) *Hub {
 	h := &Hub{
 		broadcast:      make(chan []byte),
 		register:       make(chan *Client),
@@ -41,6 +42,7 @@ func NewHub(userRepo *repository.UserRepository, pokerRepo *repository.PokerRepo
 		balanceUpdates: make(chan balanceUpdateMsg, 1024),
 		UserRepo:       userRepo,
 		PokerRepo:      pokerRepo,
+		ChatRepo:       chatRepo,
 	}
 
 	// Create default rooms
@@ -171,6 +173,12 @@ func (h *Hub) GetRoomList() []models.Room {
 	return rooms
 }
 
+func (h *Hub) GetOnlineCount() int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return len(h.clients)
+}
+
 func (h *Hub) GetRoom(id string) (*models.Room, bool) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -217,16 +225,44 @@ func (h *Hub) HandlePokerAction(roomID string, userID string, action models.Poke
 
 	// If the round just ended, schedule the next hand
 	if room.GameState.Round == "waiting" {
-		go h.scheduleNextHand(roomID)
+		// Use a local variable to capture roomID and handID to avoid race later
+		hid := room.GameState.ID
+		go h.scheduleNextHand(roomID, hid)
 	}
 }
 
-func (h *Hub) scheduleNextHand(roomID string) {
-	time.Sleep(10 * time.Second)
+func (h *Hub) scheduleNextHand(roomID string, triggerHandID string) {
+	// First sleep a bit to allow final updates to settle
+	time.Sleep(500 * time.Millisecond)
+
+	h.mu.Lock()
+	room, ok := h.Rooms[roomID]
+	// If room changed round already or hand ID changed, stop
+	if !ok || room.GameState.Round != "waiting" || room.GameState.ID != triggerHandID {
+		h.mu.Unlock()
+		return
+	}
+	h.mu.Unlock()
+
+	for i := 10; i > 0; i-- {
+		h.mu.Lock()
+		room, ok = h.Rooms[roomID]
+		// Double check we are still in the same waiting state
+		if !ok || room.GameState.Round != "waiting" || room.GameState.ID != triggerHandID {
+			h.mu.Unlock()
+			return
+		}
+		room.GameState.NextHandCountdown = i
+		h.broadcastRoomUpdateLocked("room_update", room)
+		h.mu.Unlock()
+		time.Sleep(1 * time.Second)
+	}
+
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	room, ok := h.Rooms[roomID]
-	if ok {
+	room, ok = h.Rooms[roomID]
+	if ok && room.GameState.Round == "waiting" && room.GameState.ID == triggerHandID {
+		room.GameState.NextHandCountdown = 0
 		poker.StartHand(room, h)
 		h.broadcastRoomUpdateLocked("room_update", room)
 	}
@@ -313,7 +349,7 @@ func (h *Hub) UpdateBalance(userID string, amount int64, source string) {
 	}
 }
 
-func (h *Hub) LogPokerEvent(roomID string, handID string, event string, playerID string, username string, amount int64, pot int64, details string) {
+func (h *Hub) LogPokerEvent(roomID string, handID string, event string, playerID string, username string, amount int64, pot int64, cards []models.Card, community []models.Card, details string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -330,6 +366,8 @@ func (h *Hub) LogPokerEvent(roomID string, handID string, event string, playerID
 		Username:  username,
 		Amount:    amount,
 		Pot:       pot,
+		Cards:     cards,
+		Community: community,
 		Details:   details,
 		Timestamp: primitive.NewDateTimeFromTime(time.Now()),
 	}
@@ -337,7 +375,45 @@ func (h *Hub) LogPokerEvent(roomID string, handID string, event string, playerID
 	h.PokerRepo.LogEvent(ctx, history)
 }
 
-func (h *Hub) LogSlotEvent(userID string, username string, bet int64, lines int, result [][]int, win int64) {
+func (h *Hub) HandleChatMessage(msg models.ChatMessage) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Save to DB
+	err := h.ChatRepo.SaveMessage(ctx, msg)
+	if err != nil {
+		log.Printf("Error saving chat message: %v", err)
+	}
+
+	// Broadcast to all clients
+	resp := WSResponse{
+		Action: "chat_message",
+		Status: "success",
+		Data:   msg,
+	}
+	h.BroadcastJSON(resp)
+}
+
+func (h *Hub) SendChatHistory(client *Client, roomID string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	history, err := h.ChatRepo.GetHistory(ctx, roomID, 50)
+	if err != nil {
+		log.Printf("Error getting chat history: %v", err)
+		return
+	}
+
+	resp := WSResponse{
+		Action: "chat_history",
+		Status: "success",
+		Data:   map[string]interface{}{"room_id": roomID, "messages": history},
+	}
+	data, _ := json.Marshal(resp)
+	client.send <- data
+}
+
+func (h *Hub) LogSlotEvent(userID string, username string, bet int64, lines int, result [][]int, winners [][]int, win int64) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -348,6 +424,7 @@ func (h *Hub) LogSlotEvent(userID string, username string, bet int64, lines int,
 		Bet:       bet,
 		Lines:     lines,
 		Result:    result,
+		Winners:   winners,
 		WinAmount: win,
 		Timestamp: primitive.NewDateTimeFromTime(time.Now()),
 	}

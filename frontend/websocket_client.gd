@@ -1,7 +1,7 @@
 extends Node
 
 var socket = WebSocketPeer.new()
-var url = "ws://localhost:9090/ws"
+var url = "wss://api.kashino.my.id/ws"
 
 func _ready():
 	print("Connecting to backend at ", url)

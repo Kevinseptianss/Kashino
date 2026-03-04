@@ -29,14 +29,15 @@ type WinnerInfo struct {
 }
 
 type GameState struct {
-	ID          string       `json:"id"`
-	Players     []Player     `json:"players"`
-	Community   []Card       `json:"community"`
-	Pot         int64        `json:"pot"`
-	CurrentTurn string       `json:"current_turn"`
-	Round       string       `json:"round"` // "waiting", "pre-flop", "flop", "turn", "river", "showdown"
-	DealerIdx   int          `json:"dealer_idx"`
-	LastWinners []WinnerInfo `json:"last_winners,omitempty"`
+	ID                string       `json:"id"`
+	Players           []Player     `json:"players"`
+	Community         []Card       `json:"community"`
+	Pot               int64        `json:"pot"`
+	CurrentTurn       string       `json:"current_turn"`
+	Round             string       `json:"round"` // "waiting", "pre-flop", "flop", "turn", "river", "showdown"
+	DealerIdx         int          `json:"dealer_idx"`
+	LastWinners       []WinnerInfo `json:"last_winners,omitempty"`
+	NextHandCountdown int          `json:"next_hand_countdown"`
 }
 
 type Room struct {
@@ -46,6 +47,7 @@ type Room struct {
 	MaxPlayers int       `json:"max_players"`
 	SmallBlind int64     `json:"small_blind"`
 	BigBlind   int64     `json:"big_blind"`
+	HandCount  int64     `json:"hand_count"`
 }
 
 type PokerAction struct {
@@ -61,7 +63,7 @@ type PokerHistory struct {
 	Event     string             `bson:"event" json:"event"` // "start", "action", "win", "fold"
 	PlayerID  string             `bson:"player_id,omitempty" json:"player_id,omitempty"`
 	Username  string             `bson:"username,omitempty" json:"username,omitempty"`
-	Amount    int64              `bson:"amount,omitempty" json:"amount,omitempty"`
+	Amount    int64              `bson:"amount" json:"amount"`
 	Pot       int64              `bson:"pot" json:"pot"`
 	Cards     []Card             `bson:"cards,omitempty" json:"cards,omitempty"`
 	Community []Card             `bson:"community,omitempty" json:"community,omitempty"`
@@ -75,7 +77,17 @@ type SlotHistory struct {
 	Username  string             `bson:"username" json:"username"`
 	Bet       int64              `bson:"bet" json:"bet"`
 	Lines     int                `bson:"lines" json:"lines"`
-	Result    [][]int            `bson:"result" json:"result"` // 5x3 grid or similar
+	Result    [][]int            `bson:"result" json:"result"`                       // 5x3 grid or similar
+	Winners   [][]int            `bson:"winners,omitempty" json:"winners,omitempty"` // [[row, col], ...]
 	WinAmount int64              `bson:"win_amount" json:"win_amount"`
+	Timestamp primitive.DateTime `bson:"timestamp" json:"timestamp"`
+}
+
+type ChatMessage struct {
+	ID        primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	RoomID    string             `bson:"room_id" json:"room_id"`
+	UserID    string             `bson:"user_id" json:"user_id"`
+	Username  string             `bson:"username" json:"username"`
+	Message   string             `bson:"message" json:"message"`
 	Timestamp primitive.DateTime `bson:"timestamp" json:"timestamp"`
 }

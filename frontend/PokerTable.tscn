@@ -29,6 +29,7 @@ var _card_animation_index: int = 0
 @onready var raise_btn = %RaiseBtn
 @onready var all_in_btn = %AllInBtn
 @onready var winner_label = %WinnerLabel
+@onready var countdown_label = %CountdownLabel
 @onready var standup_btn = %StandUpBtn
 @onready var bet_slider = %BetSlider
 @onready var bet_label = %BetValueLabel
@@ -38,6 +39,15 @@ var _card_animation_index: int = 0
 @onready var user_name_label = %UserNameLabel
 @onready var user_balance_label = %UserBalanceLabel
 
+var _chat_expanded = false
+var _chat_messages = []
+
+@onready var chat_container = %ChatContainer
+@onready var chat_expand_btn = %ChatExpandBtn
+@onready var chat_log = %ChatLog
+@onready var chat_input = %ChatInput
+@onready var chat_send_btn = %ChatSendBtn
+
 func _ready():
 	turn_highlight.hide()
 	if has_node(\"/root/AuthService\"):
@@ -45,15 +55,19 @@ func _ready():
 		auth.player_sat.connect(_on_player_sat)
 		auth.room_joined.connect(_on_room_update)
 		auth.room_update.connect(_on_room_update)
+		auth.chat_message_received.connect(_on_chat_message)
+		auth.chat_history_received.connect(_on_chat_history)
 		
 		# Join the room
-		auth._send_ws_message(\"join_room\", {\"room_id\": room_id})
-	
-	fold_btn.pressed.connect(func(): _send_action(\"fold\"))
-	check_btn.pressed.connect(func(): _send_action(\"check\"))
+		auth._send_ws_message("join_room", {"room_id": room_id})
+	if chat_expand_btn:
+		chat_expand_btn.pressed.connect(_on_chat_expand_toggled)
+		
+	fold_btn.pressed.connect(func(): _send_action("fold"))
+	check_btn.pressed.connect(func(): _send_action("check"))
 	call_btn.pressed.connect(func():
 		var to_call = _get_call_amount()
-		_send_action(\"call\", to_call)
+		_send_action("call", to_call)
 	)
 	raise_btn.pressed.connect(func():
 		_send_action(\"raise\", int(bet_slider.value))
@@ -71,8 +85,12 @@ func _ready():
 	bet_slider.value_changed.connect(_on_bet_slider_changed)
 
 func _on_bet_slider_changed(val):
-	bet_label.text = \"RAISE TO: C \" + str(int(val))
-	raise_btn.text = \"RAISE TO\\n(C \" + str(int(val)) + \")\"
+	if val >= bet_slider.max_value:
+		bet_label.text = \"RAISE TO: ALL IN (C \" + str(int(val)) + \")\"
+		raise_btn.text = \"ALL IN\\n(C \" + str(int(val)) + \")\"
+	else:
+		bet_label.text = \"RAISE TO: C \" + str(int(val))
+		raise_btn.text = \"RAISE TO\\n(C \" + str(int(val)) + \")\"
 
 func _on_room_update(room_data):
 	if room_data.get(\"id\") != room_id: return
@@ -122,10 +140,19 @@ func _process_animations(new_room):
 			# Detect Check/Call/Raise (LastBet increased)
 			elif p_new[\"last_bet\"] > p_old[\"last_bet\"]:
 				var diff = p_new[\"last_bet\"] - p_old[\"last_bet\"]
-				if p_old[\"last_bet\"] == 0 and new_state[\"round\"] != \"pre-flop\":
+				
+				# Get max bet from old state to distinguish call vs raise
+				var old_max_bet = 0
+				for op in old_state.get(\"players\", []):
+					if op[\"last_bet\"] > old_max_bet:
+						old_max_bet = op[\"last_bet\"]
+				
+				if p_old[\"last_bet\"] == 0 and old_max_bet == 0 and new_state[\"round\"] != \"pre-flop\":
 					_spawn_popup(seat_idx, \"BET \" + str(int(p_new[\"last_bet\"])), Color.GREEN)
-				else:
+				elif p_new[\"last_bet\"] > old_max_bet:
 					_spawn_popup(seat_idx, \"RAISE \" + str(int(p_new[\"last_bet\"])), Color.ORANGE)
+				else:
+					_spawn_popup(seat_idx, \"CALL \" + str(int(p_new[\"last_bet\"])), Color.YELLOW)
 				_animate_chips(seat_idx)
 
 func _spawn_popup(seat_idx, text, color):
@@ -174,9 +201,19 @@ func _get_call_amount() -> int:
 func _refresh_ui():
 	if not current_room: return
 	
-	# Reset card animation index if we're about to animate new cards
-	if _animate_next_cards:
+	# Reset card animation index and clear old cards if we're about to animate new cards (start of hand)
+	# Reset card animation index and clear ALL cards if we're starting a new hand (pre-flop)
+	if _animate_next_cards and current_room[\"game_state\"][\"round\"] == \"pre-flop\":
 		_card_animation_index = 0
+		for s in seats:
+			var c_box = s.get_node(\"Cards\")
+			for child in c_box.get_children():
+				c_box.remove_child(child)
+				child.queue_free()
+		# Clear community cards at start of hand too
+		for child in community_container.get_children():
+			community_container.remove_child(child)
+			child.queue_free()
 	
 	var id = auth.current_user[\"id\"] if auth and auth.current_user else \"\"
 	var is_seated = false
@@ -189,9 +226,20 @@ func _refresh_ui():
 			my_player = p
 			break
 	
+	# Countdown logic
+	var countdown = current_room[\"game_state\"].get(\"next_hand_countdown\", 0)
+	if countdown > 0:
+		countdown_label.text = \"NEXT HAND IN \" + str(countdown)
+		countdown_label.show()
+	else:
+		countdown_label.hide()
+	
 	winner_label.hide()
 	pot_label.text = \"POT: C \" + str(int(current_room[\"game_state\"][\"pot\"]))
+	var hand_id = current_room[\"game_state\"].get(\"id\", \"\")
 	info_label.text = current_room[\"name\"] + \" - \" + current_room[\"game_state\"][\"round\"].to_upper() + \" (\" + str(int(current_room[\"small_blind\"])) + \"/\" + str(int(current_room[\"big_blind\"])) + \")\"
+	if hand_id != \"\":
+		info_label.text += \" - \" + hand_id
 	
 	if auth and auth.current_user:
 		user_name_label.text = auth.current_user.get(\"username\", \"\")
@@ -268,38 +316,34 @@ func _refresh_ui():
 				for child in card_hbox.get_children(): child.queue_free()
 			elif player[\"in_game\"]:
 				var target_count = 2
-				if player_cards.size() > 0: target_count = player_cards.size()
+				# Synchronize count immediately
+				while card_hbox.get_child_count() > target_count:
+					var child = card_hbox.get_child(0)
+					card_hbox.remove_child(child)
+					child.queue_free()
+				while card_hbox.get_child_count() < target_count:
+					var card = preload(\"res://PokerCard.tscn\").instantiate()
+					card_hbox.add_child(card)
+					# Initial state for new cards
+					card.modulate.a = 0
+					card.scale = Vector2.ZERO
 				
-				if current_card_count < target_count:
-					# Deal new cards one by one
-					for j in range(current_card_count, target_count):
-						var card = preload(\"res://PokerCard.tscn\").instantiate()
-						card_hbox.add_child(card)
-						if player_cards.size() > j:
-							if player[\"id\"] == auth.current_user[\"id\"] or current_room[\"game_state\"][\"round\"] == \"showdown\" or current_room[\"game_state\"][\"round\"] == \"waiting\":
-								card.set_card(player_cards[j][\"suit\"], player_cards[j][\"value\"])
-							else:
-								card.set_back()
-						else:
-							card.set_back()
-						
-						card.modulate.a = 0
-						card.scale = Vector2.ZERO
-						var tween = create_tween().set_parallel(true)
-						tween.tween_property(card, \"modulate:a\", 1.0, 0.2)
-						tween.tween_property(card, \"scale\", Vector2.ONE, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-						await get_tree().create_timer(0.2).timeout
-				elif current_card_count == target_count:
-					# Always try to refresh card values if we have them
-					for j in range(current_card_count):
-						var card = card_hbox.get_child(j)
-						if player_cards.size() > j:
-							if player[\"id\"] == auth.current_user[\"id\"] or current_room[\"game_state\"][\"round\"] == \"showdown\" or is_waiting:
-								card.set_card(player_cards[j][\"suit\"], player_cards[j][\"value\"])
-							else:
-								card.set_back()
-						else:
-							card.set_back()
+				# Update faces and ensure visibility
+				for j in range(target_count):
+					var card = card_hbox.get_child(j)
+					var show_face = (player[\"id\"] == id) or is_waiting or (current_room[\"game_state\"][\"round\"] == \"showdown\")
+					
+					if show_face and player_cards.size() > j:
+						card.set_card(player_cards[j][\"suit\"], player_cards[j][\"value\"])
+					else:
+						card.set_back()
+					
+					# Animate if just added or if we are in animation mode
+					if card.modulate.a < 1.0:
+						_card_animation_index += 1
+						var tw = create_tween().set_parallel(true)
+						tw.tween_property(card, \"modulate:a\", 1.0, 0.3).set_delay(_card_animation_index * 0.1)
+						tw.tween_property(card, \"scale\", Vector2.ONE, 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT).set_delay(_card_animation_index * 0.1)
 		else:
 			seat.get_node(\"Label\").text = \"Empty\"
 			seat.get_node(\"SitBtn\").visible = not is_seated
@@ -344,12 +388,21 @@ func _refresh_ui():
 	# Community Cards Reveal
 	var community = current_room[\"game_state\"].get(\"community\", [])
 	if community == null: community = []
-	var existing_community = community_container.get_child_count()
 	
-	if current_room[\"game_state\"][\"round\"] == \"waiting\":
-		# Clear community cards for next hand
-		for child in community_container.get_children(): child.queue_free()
-		existing_community = 0
+	# ONLY clear community cards when a new hand starts (handled in _refresh_ui top)
+	# or if the server explicitly sends an empty community array in a non-waiting round.
+	if community.size() == 0 and current_room[\"game_state\"][\"round\"] != \"waiting\":
+		for child in community_container.get_children():
+			community_container.remove_child(child)
+			child.queue_free()
+	
+	# Synchronize count
+	while community_container.get_child_count() > community.size():
+		var child = community_container.get_child(0)
+		community_container.remove_child(child)
+		child.queue_free()
+		
+	var existing_community = community_container.get_child_count()
 		
 	if community.size() > existing_community:
 		# Reveal new cards one by one
@@ -371,19 +424,38 @@ func _refresh_ui():
 	
 	if my_turn and my_player:
 		var call_amt = _get_call_amount()
-		call_btn.text = \"CALL\\n(C \" + str(call_amt) + \")\"
+		if call_amt >= my_player[\"balance\"]:
+			call_btn.text = \"ALL IN\\n(C \" + str(int(my_player[\"balance\"])) + \")\"
+			call_amt = my_player[\"balance\"]
+		else:
+			call_btn.text = \"CALL\\n(C \" + str(int(call_amt)) + \")\"
+			
 		check_btn.visible = (call_amt == 0)
 		call_btn.visible = (call_amt > 0)
+		
 		var bb = int(current_room.get(\"big_blind\", 20))
 		var max_bet = 0
 		for p in players:
 			if p[\"last_bet\"] > max_bet: max_bet = p[\"last_bet\"]
+		
 		var min_raise = max_bet + bb
-		bet_slider.min_value = min_raise
-		bet_slider.max_value = my_player[\"balance\"] + my_player[\"last_bet\"]
-		bet_slider.step = bb
-		bet_slider.value = min_raise
-		_on_bet_slider_changed(bet_slider.value)
+		var max_avail = my_player[\"balance\"] + my_player[\"last_bet\"]
+		
+		if min_raise >= max_avail:
+			# Cannot raise further than all-in
+			bet_slider.visible = false
+			bet_slider.min_value = max_avail
+			bet_slider.max_value = max_avail
+			bet_slider.value = max_avail
+			bet_label.text = \"RAISE TO: ALL IN\"
+			raise_btn.text = \"ALL IN\\n(C \" + str(int(max_avail)) + \")\"
+		else:
+			bet_slider.visible = true
+			bet_slider.min_value = min_raise
+			bet_slider.max_value = max_avail
+			bet_slider.step = bb
+			bet_slider.value = min_raise
+			_on_bet_slider_changed(bet_slider.value)
 	
 	# Done animating this batch
 	_animate_next_cards = false
@@ -433,7 +505,61 @@ func _on_standup_pressed():
 
 func _on_back_pressed():
 	queue_free()
+
+func _on_chat_send_pressed():
+	var msg = chat_input.text.strip_edges()
+	if msg == \"\" or not auth: return
+	auth.send_chat(room_id, msg)
+	chat_input.text = \"\"
+
+func _on_chat_input_submitted(_new_text):
+	_on_chat_send_pressed()
+
+func _on_chat_message(data):
+	if data.get(\"room_id\") != room_id: return
+	_chat_messages.append(data)
+	_refresh_chat_log()
+
+func _on_chat_history(data):
+	if data.get(\"room_id\") != room_id: return
+	_chat_messages = data.get(\"messages\", [])
+	_refresh_chat_log()
+
+func _refresh_chat_log():
+	chat_log.clear()
+	var msgs_to_show = _chat_messages
+	if not _chat_expanded:
+		var start_idx = max(0, _chat_messages.size() - 5)
+		msgs_to_show = _chat_messages.slice(start_idx, _chat_messages.size())
+		
+	for m in msgs_to_show:
+		var username = m.get(\"username\", \"Unknown\")
+		var msg_text = m.get(\"message\", \"\")
+		var color = \"white\"
+		if auth and username == auth.current_user[\"username\"]:
+			color = \"yellow\"
+		chat_log.append_text(\"[color=\" + color + \"][b]\" + username + \":[/b][/color] \" + msg_text + \"\\n\")
+
+func _on_chat_expand_toggled():
+	_chat_expanded = not _chat_expanded
+	chat_expand_btn.text = \"[-]\" if _chat_expanded else \"[+]\"
+	
+	if _chat_expanded:
+		chat_container.custom_minimum_size.y = 400
+		chat_container.size.y = 400
+	else:
+		chat_container.custom_minimum_size.y = 0
+		chat_container.size.y = 120
+		
+	_refresh_chat_log()
 "
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_chat_bg"]
+bg_color = Color(0, 0, 0, 0.45)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bg"]
 bg_color = Color(0.05, 0.1, 0.05, 1)
@@ -554,6 +680,24 @@ grow_vertical = 2
 theme_override_colors/font_color = Color(1, 0.9, 0, 1)
 theme_override_font_sizes/font_size = 28
 text = "WINNER!"
+horizontal_alignment = 1
+
+[node name="CountdownLabel" type="Label" parent="Table" unique_id=1093967042]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_top = -200.0
+offset_bottom = -160.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 32
+text = "NEXT HAND IN 10"
 horizontal_alignment = 1
 
 [node name="CommunityCards" type="HBoxContainer" parent="Table" unique_id=624316700]
@@ -999,3 +1143,64 @@ text = "ALL IN"
 [connection signal="pressed" from="Seats/Seat2/SitBtn" to="." method="_on_sit_pressed" binds= [2]]
 [connection signal="pressed" from="Seats/Seat3/SitBtn" to="." method="_on_sit_pressed" binds= [3]]
 [connection signal="pressed" from="Seats/Seat4/SitBtn" to="." method="_on_sit_pressed" binds= [4]]
+
+[node name="ChatContainer" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 0
+offset_left = 20.0
+offset_top = 110.0
+offset_right = 320.0
+offset_bottom = 230.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_chat_bg")
+
+[node name="VBox" type="VBoxContainer" parent="ChatContainer"]
+layout_mode = 2
+
+[node name="Header" type="HBoxContainer" parent="ChatContainer/VBox"]
+layout_mode = 2
+alignment = 2
+
+[node name="ChatExpandBtn" type="Button" parent="ChatContainer/VBox/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+text = "[+]"
+flat = true
+
+[node name="ChatLog" type="RichTextLabel" parent="ChatContainer/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+bbcode_enabled = true
+scroll_following = true
+
+[node name="ChatInputBox" type="HBoxContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -200.0
+offset_top = -240.0
+offset_right = 200.0
+offset_bottom = -200.0
+grow_horizontal = 2
+grow_vertical = 0
+
+[node name="ChatInput" type="LineEdit" parent="ChatInputBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Type a message..."
+
+[node name="ChatSendBtn" type="Button" parent="ChatInputBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(60, 0)
+layout_mode = 2
+text = "SEND"
+
+[connection signal="text_submitted" from="ChatInputBox/ChatInput" to="." method="_on_chat_input_submitted"]
+[connection signal="pressed" from="ChatInputBox/ChatSendBtn" to="." method="_on_chat_send_pressed"]

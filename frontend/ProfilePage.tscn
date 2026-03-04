@@ -138,16 +138,6 @@ func _format_timestamp(ts):
 
 func _on_back_pressed():
 	queue_free()
-
-func _on_logout_pressed():
-	if has_node(\"/root/AuthService\"):
-		var auth = get_node(\"/root/AuthService\")
-		auth.clear_auth()
-		# Notify main to update UI
-		var main = get_tree().root.get_node(\"Main\")
-		if main:
-			main._on_logout()
-		queue_free()
 "
 
 [node name="ProfilePage" type="Control"]
@@ -235,11 +225,4 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 12
 
-[node name="LogoutBtn" type="Button" parent="VBox"]
-custom_minimum_size = Vector2(0, 50)
-layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.3, 0.3, 1)
-text = "LOGOUT"
-
 [connection signal="pressed" from="VBox/Header/BackBtn" to="." method="_on_back_pressed"]
-[connection signal="pressed" from="VBox/LogoutBtn" to="." method="_on_logout_pressed"]

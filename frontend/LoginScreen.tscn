@@ -52,13 +52,12 @@ signal auth_complete
 @onready var switch_btn = %SwitchModeBtn
 @onready var error_label = %ErrorLabel
 
-# CAPTCHA nodes
-@onready var captcha_container = %CaptchaContainer
-@onready var captcha_label = %CaptchaLabel
-@onready var captcha_input = %CaptchaInput
+@onready var otp_input = %CaptchaInput # Reusing nodes to avoid scene breakage
+@onready var otp_container = %CaptchaContainer
+@onready var resend_btn = %SubmitBtn # Later we'll optimize this structure
 
 var is_login_mode = true
-var current_captcha = \"\"
+var resend_timer = 0
 
 func _ready():
 	_update_ui()
@@ -73,48 +72,74 @@ func _ready():
 		error_label.text = \"ERROR: AuthService not found!\"
 		submit_btn.disabled = true
 
-func _generate_captcha():
-	var chars = \"ABCDEFGHJKLMNPQRSTUVWXYZ23456789\"
-	current_captcha = \"\"
-	for i in range(5):
-		current_captcha += chars[randi() % chars.length()]
-	captcha_label.text = current_captcha
+func _process(delta):
+	if resend_timer > 0:
+		resend_timer -= delta
+		if resend_timer <= 0:
+			_update_resend_button()
+		else:
+			_update_resend_button()
+
+func _update_resend_button():
+	if is_login_mode: return
+	
+	var otp_btn = %OTPBtn
+	if resend_timer > 0:
+		otp_btn.disabled = true
+		otp_btn.text = \"Resend in %ds\" % ceil(resend_timer)
+	else:
+		otp_btn.disabled = false
+		otp_btn.text = \"Send OTP\"
 
 func _update_ui():
+	# Clear inputs
+	error_label.text = \"\"
+	
 	if is_login_mode:
 		$VBox/Title.text = \"Welcome Back\"
 		email_input.hide()
-		captcha_container.hide()
+		otp_container.hide()
 		submit_btn.text = \"Login\"
 		switch_btn.text = \"Don't have an account? Sign Up\"
 	else:
 		$VBox/Title.text = \"Join Kashino\"
 		email_input.show()
-		captcha_container.show()
-		_generate_captcha()
-		submit_btn.text = \"Create Account\"
+		otp_container.show()
+		# Rename labels for OTP
+		%CaptchaLabel.text = \"ENTER OTP\"
+		otp_input.placeholder_text = \"6-digit code\"
+		submit_btn.text = \"Verify & Signup\"
 		switch_btn.text = \"Already have an account? Login\"
-	error_label.text = \"\"
+		_update_resend_button()
 
 func _on_switch_mode_pressed():
 	is_login_mode = !is_login_mode
 	_update_ui()
 
-func _on_submit_pressed():
-	if not is_login_mode:
-		if captcha_input.text.to_upper() != current_captcha:
-			error_label.text = \"Invalid CAPTCHA code!\"
-			_generate_captcha()
-			captcha_input.text = \"\"
-			return
+func _on_send_otp_pressed():
+	if email_input.text == \"\" or username_input.text == \"\":
+		error_label.text = \"Username and Email required for OTP\"
+		return
+		
+	error_label.text = \"Requesting OTP...\"
+	get_node(\"/root/AuthService\").request_signup_otp(username_input.text, email_input.text)
+	resend_timer = 60.0
+	_update_resend_button()
 
-	error_label.text = \"Authenticating...\"
+func _on_submit_pressed():
 	var auth = get_node(\"/root/AuthService\")
 	if is_login_mode:
+		if username_input.text == \"\" or password_input.text == \"\":
+			error_label.text = \"Credentials required\"
+			return
+		error_label.text = \"Logging in...\"
 		auth.login(username_input.text, password_input.text)
 	else:
-		# Sending both input and expected answer for backend validation
-		auth.signup(username_input.text, email_input.text, password_input.text, captcha_input.text.to_upper(), current_captcha)
+		if otp_input.text == \"\":
+			error_label.text = \"OTP required for signup\"
+			return
+		error_label.text = \"Verifying...\"
+		auth.signup(username_input.text, email_input.text, password_input.text, otp_input.text)
 
 func _on_auth_success(_user_data):
 	auth_complete.emit()
@@ -122,9 +147,6 @@ func _on_auth_success(_user_data):
 
 func _on_auth_failed(msg):
 	error_label.text = msg
-	if not is_login_mode:
-		_generate_captcha()
-		captcha_input.text = \"\"
 "
 
 [node name="LoginScreen" type="Control"]
@@ -217,33 +239,19 @@ theme_override_font_sizes/font_size = 14
 layout_mode = 2
 theme_override_constants/separation = 15
 
-[node name="ViewportContainer" type="SubViewportContainer" parent="VBox/Card/Margin/Form/CaptchaContainer/HBox"]
-material = SubResource("ShaderMaterial_captcha")
+[node name="OTPBtn" type="Button" parent="VBox/Card/Margin/Form/CaptchaContainer/HBox"]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(150, 50)
 layout_mode = 2
-
-[node name="SubViewport" type="SubViewport" parent="VBox/Card/Margin/Form/CaptchaContainer/HBox/ViewportContainer"]
-transparent_bg = true
-handle_input_locally = false
-size = Vector2i(150, 50)
-render_target_update_mode = 4
-
-[node name="CaptchaLabel" type="Label" parent="VBox/Card/Margin/Form/CaptchaContainer/HBox/ViewportContainer/SubViewport"]
-unique_name_in_owner = true
-offset_right = 150.0
-offset_bottom = 50.0
-theme_override_colors/font_color = Color(0.588235, 0.439216, 0.866667, 1)
-theme_override_font_sizes/font_size = 32
-text = "ABCDE"
-horizontal_alignment = 1
-vertical_alignment = 1
+theme_override_styles/normal = SubResource("StyleBoxFlat_btn")
+text = "Send OTP"
 
 [node name="CaptchaInput" type="LineEdit" parent="VBox/Card/Margin/Form/CaptchaContainer/HBox"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 50)
 layout_mode = 2
 size_flags_horizontal = 3
-placeholder_text = "Type code..."
+placeholder_text = "6-digit code"
 alignment = 1
 
 [node name="ErrorLabel" type="Label" parent="VBox/Card/Margin/Form"]
@@ -265,5 +273,6 @@ layout_mode = 2
 flat = true
 text = "Don't have an account? Sign Up"
 
+[connection signal="pressed" from="VBox/Card/Margin/Form/CaptchaContainer/HBox/OTPBtn" to="." method="_on_send_otp_pressed"]
 [connection signal="pressed" from="VBox/Card/Margin/Form/SubmitBtn" to="." method="_on_submit_pressed"]
 [connection signal="pressed" from="VBox/Card/Margin/Form/SwitchModeBtn" to="." method="_on_switch_mode_pressed"]

@@ -191,6 +191,32 @@ func (c *Client) handleAction(msg WSMessage) {
 			return
 		}
 		c.sendSuccess("join_room", room)
+		c.Hub.SendChatHistory(c, joinData.RoomID)
+
+	case "chat_message":
+		if c.UserID.IsZero() {
+			c.sendError("chat_message", "Unauthorized")
+			return
+		}
+		var chatData struct {
+			RoomID  string `json:"room_id"`
+			Message string `json:"message"`
+		}
+		if err := json.Unmarshal(msg.Data, &chatData); err != nil {
+			c.sendError("chat_message", "Invalid chat data")
+			return
+		}
+
+		chatMsg := models.ChatMessage{
+			ID:        primitive.NewObjectID(),
+			RoomID:    chatData.RoomID,
+			UserID:    c.UserID.Hex(),
+			Username:  c.ID, // c.ID stores username
+			Message:   chatData.Message,
+			Timestamp: primitive.NewDateTimeFromTime(time.Now()),
+		}
+
+		c.Hub.HandleChatMessage(chatMsg)
 
 	case "sit":
 		var sitData struct {
@@ -243,13 +269,31 @@ func (c *Client) handleAction(msg WSMessage) {
 			Bet       int64   `json:"bet"`
 			Lines     int     `json:"lines"`
 			Result    [][]int `json:"result"`
+			Winners   [][]int `json:"winners"`
 			WinAmount int64   `json:"win_amount"`
 		}
 		if err := json.Unmarshal(msg.Data, &slotData); err != nil {
 			c.sendError("slot_log", "Invalid slot log data")
 			return
 		}
-		c.Hub.LogSlotEvent(c.UserID.Hex(), c.ID, slotData.Bet, slotData.Lines, slotData.Result, slotData.WinAmount)
+
+		// Fetch username for logging
+		user, _ := c.Hub.UserRepo.GetUser(ctx, c.UserID)
+		username := "Unknown"
+		if user != nil {
+			username = user.Username
+		}
+
+		c.Hub.LogSlotEvent(c.UserID.Hex(), username, slotData.Bet, slotData.Lines, slotData.Result, slotData.Winners, slotData.WinAmount)
+
+		// Deduct bet and add win to balance
+		if slotData.Bet > 0 {
+			c.Hub.UpdateBalance(c.UserID.Hex(), -slotData.Bet, "slot_spin")
+		}
+		if slotData.WinAmount > 0 {
+			c.Hub.UpdateBalance(c.UserID.Hex(), slotData.WinAmount, "slot_win")
+		}
+
 		c.sendSuccess("slot_log", slotData)
 
 	default:

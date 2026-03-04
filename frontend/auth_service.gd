@@ -12,12 +12,14 @@ signal room_joined(room_data)
 signal player_sat(room_data)
 signal player_stood_up()
 signal room_update(room_data)
+signal chat_message_received(chat_data)
+signal chat_history_received(history_data)
 
-var base_url = "http://localhost:9090"
+var base_url = "https://api.kashino.my.id"
 var current_user = null
 var current_balance = 0.0
 var socket = WebSocketPeer.new()
-var url = "ws://localhost:9090/ws"
+var url = "wss://api.kashino.my.id/ws"
 var ws_connected = false
 var auth_file = "user://auth.cfg"
 var _last_login_data = {"u":"","p":""}
@@ -98,7 +100,29 @@ func login(username, password):
 	if err != OK:
 		login_failed.emit("Could not make login request")
 
-func signup(username, email, password, captcha_answer, captcha_expected):
+func request_signup_otp(username, email):
+	var http_request = HTTPRequest.new()
+	add_child(http_request)
+	http_request.request_completed.connect(func(_result, response_code, _headers, body):
+		var response = JSON.parse_string(body.get_string_from_utf8())
+		if response_code == 200:
+			print("AuthService: OTP sent")
+		else:
+			var err = "Failed to send OTP"
+			if response and response.has("error"): err = response["error"]
+			signup_failed.emit(err)
+		http_request.queue_free()
+	)
+	
+	var body = JSON.stringify({
+		"username": username,
+		"email": email
+	})
+	
+	var headers = ["Content-Type: application/json"]
+	http_request.request(base_url + "/request-signup-otp", headers, HTTPClient.METHOD_POST, body)
+
+func signup(username, email, password, otp):
 	var http_request = HTTPRequest.new()
 	add_child(http_request)
 	http_request.request_completed.connect(_on_signup_request_completed)
@@ -107,8 +131,7 @@ func signup(username, email, password, captcha_answer, captcha_expected):
 		"username": username,
 		"email": email,
 		"password": password,
-		"captcha_answer": captcha_answer,
-		"captcha_expected": captcha_expected
+		"otp": otp
 	})
 	
 	var headers = ["Content-Type: application/json"]
@@ -198,6 +221,18 @@ func _handle_ws_message(json_str):
 		"standup":
 			if status == "success":
 				player_stood_up.emit()
+		"chat_message":
+			if status == "success":
+				chat_message_received.emit(data)
+		"chat_history":
+			if status == "success":
+				chat_history_received.emit(data)
+
+func send_chat(room_id, message):
+	_send_ws_message("chat_message", {
+		"room_id": room_id,
+		"message": message
+	})
 
 func _send_ws_message(action, data):
 	if socket.get_ready_state() != WebSocketPeer.STATE_OPEN:
