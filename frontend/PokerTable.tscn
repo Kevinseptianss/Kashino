@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3 uid="uid://drdg0utxp4lqf"]
+[gd_scene load_steps=10 format=3 uid="uid://drdg0utxp4lqf"]
 
 [ext_resource type="Texture2D" path="res://assets/slots/background_pokertable.png" id="1_bg_res"]
 
@@ -59,15 +59,15 @@ func _ready():
 		auth.chat_history_received.connect(_on_chat_history)
 		
 		# Join the room
-		auth._send_ws_message("join_room", {"room_id": room_id})
+		auth._send_ws_message(\"join_room\", {\"room_id\": room_id})
 	if chat_expand_btn:
 		chat_expand_btn.pressed.connect(_on_chat_expand_toggled)
 		
-	fold_btn.pressed.connect(func(): _send_action("fold"))
-	check_btn.pressed.connect(func(): _send_action("check"))
+	fold_btn.pressed.connect(func(): _send_action(\"fold\"))
+	check_btn.pressed.connect(func(): _send_action(\"check\"))
 	call_btn.pressed.connect(func():
 		var to_call = _get_call_amount()
-		_send_action("call", to_call)
+		_send_action(\"call\", to_call)
 	)
 	raise_btn.pressed.connect(func():
 		_send_action(\"raise\", int(bet_slider.value))
