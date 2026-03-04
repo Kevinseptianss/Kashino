@@ -60,6 +60,7 @@ script/source = "extends Control
 @onready var balance_label = %BalanceLabel
 @onready var coin_particles = %CoinParticles
 @onready var camera = %ShakeCamera
+@onready var auto_spin_btn = %AutoSpinBtn
 
 var reels = []
 var reels_finished = 0
@@ -72,6 +73,7 @@ var current_bet = 1
 var num_lines = 1
 var bet_values = [1, 5, 10, 20]
 var bet_index = 0
+var is_auto_spinning = false
 
 func _ready():
 	if has_node(\"/root/AuthService\"):
@@ -116,7 +118,10 @@ func _on_spin_pressed():
 	for reel in reels:
 		for icon in reel.icons:
 			icon.set_winning(false)
-	spin_btn.disabled = true
+	
+	if not is_auto_spinning:
+		spin_btn.disabled = true
+	auto_spin_btn.disabled = true
 	
 	# Biased Win Rate Logic (60% Win / 40% Loss)
 	var is_win = randf() < 0.6
@@ -167,7 +172,24 @@ func _on_reel_stopped(results, index):
 	
 	if reels_finished == reels.size():
 		spin_btn.disabled = false
+		auto_spin_btn.disabled = false
 		_check_wins()
+		
+		if is_auto_spinning:
+			await get_tree().create_timer(1.0).timeout
+			if is_auto_spinning: # Check again after delay
+				_on_spin_pressed()
+
+func _on_auto_spin_pressed():
+	is_auto_spinning = !is_auto_spinning
+	if is_auto_spinning:
+		auto_spin_btn.text = \"STOP\"
+		auto_spin_btn.modulate = Color(1, 0.3, 0.3)
+		if reels_finished == reels.size() or reels_finished == 0:
+			_on_spin_pressed()
+	else:
+		auto_spin_btn.text = \"AUTO\"
+		auto_spin_btn.modulate = Color(1, 1, 1)
 
 func _check_wins():
 	var total_win = 0
@@ -571,15 +593,30 @@ custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
 text = "+"
 
-[node name="SpinBtn" type="Button" parent="MainLayout/BottomControls/VBox"]
+[node name="SpinHBox" type="HBoxContainer" parent="MainLayout/BottomControls/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 15
+
+[node name="SpinBtn" type="Button" parent="MainLayout/BottomControls/VBox/SpinHBox"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 100)
 layout_mode = 2
+size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 40
 theme_override_styles/normal = SubResource("StyleBoxFlat_spin_normal")
 theme_override_styles/hover = SubResource("StyleBoxFlat_spin_hover")
 theme_override_styles/pressed = SubResource("StyleBoxFlat_spin_pressed")
 text = "SPIN"
+
+[node name="AutoSpinBtn" type="Button" parent="MainLayout/BottomControls/VBox/SpinHBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(100, 100)
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+theme_override_styles/normal = SubResource("StyleBoxFlat_spin_normal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_spin_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_spin_pressed")
+text = "AUTO"
 
 [node name="CoinParticles" type="CPUParticles2D" parent="."]
 unique_name_in_owner = true
@@ -662,4 +699,5 @@ text = "CLOSE"
 [connection signal="pressed" from="MainLayout/TopNav/HBox/ExitBtn" to="." method="_on_back_pressed"]
 [connection signal="pressed" from="MainLayout/TopNav/HBox/HowToPlayBtn" to="." method="_on_how_to_play_pressed"]
 [connection signal="pressed" from="HowToPlayPopup/VBox/CloseHelpBtn" to="." method="_on_close_help_pressed"]
-[connection signal="pressed" from="MainLayout/BottomControls/VBox/SpinBtn" to="." method="_on_spin_pressed"]
+[connection signal="pressed" from="MainLayout/BottomControls/VBox/SpinHBox/SpinBtn" to="." method="_on_spin_pressed"]
+[connection signal="pressed" from="MainLayout/BottomControls/VBox/SpinHBox/AutoSpinBtn" to="." method="_on_auto_spin_pressed"]

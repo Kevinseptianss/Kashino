@@ -148,6 +148,26 @@ grow_horizontal = 2
 grow_vertical = 2
 script = SubResource("GDScript_main")
 
+[node name="Banner" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("1")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="Overlay" type="ColorRect" parent="Banner"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.4)
+
 [node name="ContentRoot" type="VBoxContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
@@ -236,20 +256,16 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 30
 
-[node name="Banner" type="TextureRect" parent="ContentRoot/ScrollArea/VBoxContainer"]
-custom_minimum_size = Vector2(0, 200)
-layout_mode = 2
-texture = ExtResource("1")
-expand_mode = 1
-stretch_mode = 6
+
 
 [node name="GameSection" type="VBoxContainer" parent="ContentRoot/ScrollArea/VBoxContainer"]
 layout_mode = 2
 
-[node name="Title" type="Label" parent="ContentRoot/ScrollArea/VBoxContainer/GameSection"]
+[node name="KashinoTitle" type="Label" parent="ContentRoot/ScrollArea/VBoxContainer/GameSection"]
 layout_mode = 2
-text = "  POPULAR GAMES"
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 48
+text = "Kashino"
+horizontal_alignment = 1
 
 [node name="Padding" type="MarginContainer" parent="ContentRoot/ScrollArea/VBoxContainer/GameSection"]
 layout_mode = 2
@@ -281,7 +297,7 @@ custom_minimum_size = Vector2(160, 160)
 layout_mode = 2
 texture = ExtResource("2")
 expand_mode = 1
-stretch_mode = 6
+stretch_mode = 5
 
 [node name="Name" type="Label" parent="ContentRoot/ScrollArea/VBoxContainer/GameSection/Padding/GridContainer/SlotButton/SlotCard"]
 layout_mode = 2
@@ -307,7 +323,7 @@ custom_minimum_size = Vector2(160, 160)
 layout_mode = 2
 texture = ExtResource("3")
 expand_mode = 1
-stretch_mode = 6
+stretch_mode = 5
 
 [node name="Name" type="Label" parent="ContentRoot/ScrollArea/VBoxContainer/GameSection/Padding/GridContainer/PokerButton/PokerCard"]
 layout_mode = 2
