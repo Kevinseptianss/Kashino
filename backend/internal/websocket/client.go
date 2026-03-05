@@ -18,7 +18,7 @@ const (
 	writeWait      = 10 * time.Second
 	pongWait       = 60 * time.Second
 	pingPeriod     = (pongWait * 9) / 10
-	maxMessageSize = 4096 // Increased from 512
+	maxMessageSize = 65536 // Increased for profile picture data
 )
 
 var upgrader = websocket.Upgrader{
@@ -172,6 +172,17 @@ func (c *Client) handleAction(msg WSMessage) {
 		c.sendSuccess("balance_update", map[string]interface{}{
 			"balance": newBalance,
 		})
+		// Award EXP on positive balance changes (wins)
+		if data.Amount > 0 {
+			newExp, newLevel, newTier, expErr := c.Hub.UserRepo.AddExp(ctx, c.UserID, data.Amount)
+			if expErr == nil {
+				c.sendSuccess("exp_update", map[string]interface{}{
+					"exp":   newExp,
+					"level": newLevel,
+					"tier":  newTier,
+				})
+			}
+		}
 
 	case "get_rooms":
 		rooms := c.Hub.GetRoomList()
@@ -320,9 +331,38 @@ func (c *Client) handleAction(msg WSMessage) {
 		}
 		if slotData.WinAmount > 0 {
 			c.Hub.UpdateBalance(c.UserID.Hex(), slotData.WinAmount, "slot_win")
+			// Award EXP for slot wins
+			newExp, newLevel, newTier, expErr := c.Hub.UserRepo.AddExp(ctx, c.UserID, slotData.WinAmount)
+			if expErr == nil {
+				c.sendSuccess("exp_update", map[string]interface{}{
+					"exp":   newExp,
+					"level": newLevel,
+					"tier":  newTier,
+				})
+			}
 		}
 
 		c.sendSuccess("slot_log", slotData)
+
+	case "set_profile_picture":
+		if c.UserID.IsZero() {
+			c.sendError("set_profile_picture", "Unauthorized")
+			return
+		}
+		var picData struct {
+			Picture string `json:"picture"`
+		}
+		if err := json.Unmarshal(msg.Data, &picData); err != nil {
+			c.sendError("set_profile_picture", "Invalid data")
+			return
+		}
+		if err := c.Hub.UserRepo.UpdateProfilePicture(ctx, c.UserID, picData.Picture); err != nil {
+			c.sendError("set_profile_picture", "Failed to update profile picture")
+			return
+		}
+		c.sendSuccess("set_profile_picture", map[string]interface{}{
+			"profile_picture": picData.Picture,
+		})
 
 	default:
 		log.Printf("Unknown action: %s", msg.Action)

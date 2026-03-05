@@ -1,13 +1,89 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=14 format=3]
 
 [ext_resource type="Texture2D" uid="uid://m33imlntdvuh" path="res://assets/casino_banner.png" id="1"]
 [ext_resource type="Texture2D" uid="uid://dd11sxj11rqu1" path="res://assets/slot_machine_icon.png" id="2"]
 [ext_resource type="Texture2D" uid="uid://b0ys38ct38hj6" path="res://assets/poker_icon.png" id="3"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_header"]
-bg_color = Color(0.078, 0.078, 0.118, 1)
-border_width_bottom = 2
-border_color = Color(0.157, 0.157, 0.235, 1)
+bg_color = Color(0.06, 0.04, 0.1, 0.92)
+border_width_bottom = 1
+border_color = Color(0.75, 0.55, 0.1, 0.35)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bottom_nav"]
+bg_color = Color(0.06, 0.04, 0.1, 0.96)
+border_width_top = 1
+border_color = Color(0.75, 0.55, 0.1, 0.25)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_nav_active"]
+bg_color = Color(0.75, 0.55, 0.1, 0.15)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_slot_card"]
+bg_color = Color(0.1, 0.06, 0.16, 0.95)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.85, 0.65, 0.1, 0.5)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
+shadow_color = Color(0.85, 0.65, 0.1, 0.08)
+shadow_size = 12
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_poker_card"]
+bg_color = Color(0.06, 0.06, 0.16, 0.95)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.25, 0.55, 0.9, 0.5)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
+shadow_color = Color(0.25, 0.55, 0.9, 0.08)
+shadow_size = 12
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_balance_box"]
+bg_color = Color(0.12, 0.09, 0.04, 0.85)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.85, 0.65, 0.1, 0.4)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_login_btn"]
+bg_color = Color(0.78, 0.58, 0.1, 1.0)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_play_btn"]
+bg_color = Color(0.75, 0.55, 0.08, 1.0)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_play_btn_blue"]
+bg_color = Color(0.15, 0.4, 0.78, 1.0)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_divider"]
+bg_color = Color(0.75, 0.55, 0.1, 0.3)
 
 [sub_resource type="GDScript" id="GDScript_main"]
 script/source = "extends Control
@@ -17,8 +93,31 @@ script/source = "extends Control
 @onready var login_btn = $ContentRoot/Header/MarginContainer/HBoxContainer/LoginBtn
 @onready var balance_label = $ContentRoot/Header/MarginContainer/HBoxContainer/BalanceSection/MarginContainer/Label
 @onready var username_label = $ContentRoot/Header/MarginContainer/HBoxContainer/ProfileSection/UserInfo/Username
+@onready var tier_label = $ContentRoot/Header/MarginContainer/HBoxContainer/ProfileSection/UserInfo/TierLabel
+@onready var avatar_ring = $ContentRoot/Header/MarginContainer/HBoxContainer/ProfileSection/AvatarContainer/AvatarRing
+@onready var avatar_initial = $ContentRoot/Header/MarginContainer/HBoxContainer/ProfileSection/AvatarContainer/AvatarRing/InitialLabel
 @onready var status_dot = $ContentRoot/Header/MarginContainer/HBoxContainer/StatusSection/Dot
 @onready var status_text = $ContentRoot/Header/MarginContainer/HBoxContainer/StatusSection/Text
+
+# Animation references
+@onready var title_label = $ContentRoot/ScrollArea/Content/HeroSection/KashinoTitle
+@onready var slot_card = $ContentRoot/ScrollArea/Content/GamesSection/Padding/CardContainer/SlotPanel
+@onready var poker_card = $ContentRoot/ScrollArea/Content/GamesSection/Padding/CardContainer/PokerPanel
+@onready var particles = $Particles
+
+var time_elapsed: float = 0.0
+var slot_base_y: float = 0.0
+var poker_base_y: float = 0.0
+var cards_ready: bool = false
+
+const TIER_COLORS = {
+	\"Wood\": Color(0.55, 0.41, 0.08, 1),
+	\"Bronze\": Color(0.8, 0.5, 0.2, 1),
+	\"Silver\": Color(0.75, 0.75, 0.75, 1),
+	\"Gold\": Color(1, 0.84, 0, 1),
+	\"Fire\": Color(1, 0.27, 0, 1),
+	\"Diamond\": Color(0, 1, 1, 1)
+}
 
 func _ready():
 	var auth = get_node_or_null(\"/root/AuthService\")
@@ -26,7 +125,6 @@ func _ready():
 	
 	if auth and auth.is_side_by_side:
 		var screen_size = DisplayServer.screen_get_size()
-		# Scale down if too many instances
 		var scale_factor = 1.0
 		var total_width_needed = window_size.x * auth.instance_count
 		
@@ -36,7 +134,6 @@ func _ready():
 		
 		DisplayServer.window_set_size(window_size)
 		
-		# Position side by side
 		var start_x = (screen_size.x - (window_size.x * auth.instance_count)) / 2
 		var pos_x = start_x + (window_size.x * auth.instance_index)
 		var pos_y = (screen_size.y - window_size.y) / 2
@@ -53,22 +150,94 @@ func _ready():
 		auth.login_success.connect(_on_login_success)
 		auth.balance_updated.connect(update_balance)
 		auth.connection_status_changed.connect(_on_connection_status_changed)
+		auth.tier_updated.connect(_on_tier_updated)
 		_on_connection_status_changed(auth.ws_connected)
 		auth.auto_login()
 	
 	login_btn.pressed.connect(_on_login_btn_pressed)
 	
-	var slot_btn = get_node_or_null(\"ContentRoot/ScrollArea/VBoxContainer/GameSection/Padding/GridContainer/SlotButton\")
+	var slot_btn = get_node_or_null(\"ContentRoot/ScrollArea/Content/GamesSection/Padding/CardContainer/SlotPanel/SlotButton\")
 	if slot_btn:
 		slot_btn.pressed.connect(_on_slot_pressed)
 	
-	var poker_btn = get_node_or_null(\"ContentRoot/ScrollArea/VBoxContainer/GameSection/Padding/GridContainer/PokerButton\")
+	var poker_btn = get_node_or_null(\"ContentRoot/ScrollArea/Content/GamesSection/Padding/CardContainer/PokerPanel/PokerButton\")
 	if poker_btn:
 		poker_btn.pressed.connect(_on_poker_pressed)
 	
 	%WalletBtn.pressed.connect(_on_wallet_pressed)
 	%ChatBtn.pressed.connect(_on_chat_btn_pressed)
 	%MenuBtn.pressed.connect(_on_menu_pressed)
+	
+	# Entrance animations
+	_play_entrance_animations()
+
+func _play_entrance_animations():
+	title_label.modulate = Color(1, 1, 1, 0)
+	slot_card.modulate = Color(1, 1, 1, 0)
+	poker_card.modulate = Color(1, 1, 1, 0)
+	
+	var tween = create_tween().set_parallel(true)
+	
+	tween.tween_property(title_label, \"modulate\", Color(1, 1, 1, 1), 0.8).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+	tween.tween_property(title_label, \"scale\", Vector2(1, 1), 0.8).from(Vector2(0.7, 0.7)).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
+	
+	tween.tween_property(slot_card, \"modulate\", Color(1, 1, 1, 1), 0.5).set_delay(0.4).set_ease(Tween.EASE_OUT)
+	tween.tween_property(slot_card, \"position:y\", slot_card.position.y, 0.5).from(slot_card.position.y + 40).set_delay(0.4).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+	
+	tween.tween_property(poker_card, \"modulate\", Color(1, 1, 1, 1), 0.5).set_delay(0.55).set_ease(Tween.EASE_OUT)
+	tween.tween_property(poker_card, \"position:y\", poker_card.position.y, 0.5).from(poker_card.position.y + 40).set_delay(0.55).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+	
+	await tween.finished
+	cards_ready = true
+	slot_base_y = slot_card.position.y
+	poker_base_y = poker_card.position.y
+
+func _process(delta):
+	time_elapsed += delta
+	
+	# Title golden shimmer
+	if title_label:
+		var shimmer = (sin(time_elapsed * 1.8) + 1.0) / 2.0
+		var r = lerp(0.82, 1.0, shimmer)
+		var g = lerp(0.62, 0.82, shimmer)
+		var b = lerp(0.05, 0.18, shimmer)
+		title_label.add_theme_color_override(\"font_color\", Color(r, g, b, 1.0))
+	
+	# Subtle floating cards
+	if cards_ready:
+		slot_card.position.y = slot_base_y + sin(time_elapsed * 1.2) * 3.0
+		poker_card.position.y = poker_base_y + sin(time_elapsed * 1.2 + 0.8) * 3.0
+	
+	# Neon border pulse slot (gold)
+	var si = 0.35 + 0.2 * sin(time_elapsed * 2.5)
+	var ss = slot_card.get_theme_stylebox(\"panel\") as StyleBoxFlat
+	if ss:
+		ss.border_color = Color(0.85, 0.65, 0.1, si)
+		ss.shadow_color = Color(0.85, 0.65, 0.1, si * 0.2)
+	
+	# Neon border pulse poker (blue)
+	var pi = 0.35 + 0.2 * sin(time_elapsed * 2.5 + 1.2)
+	var ps = poker_card.get_theme_stylebox(\"panel\") as StyleBoxFlat
+	if ps:
+		ps.border_color = Color(0.25, 0.55, 0.9, pi)
+		ps.shadow_color = Color(0.25, 0.55, 0.9, pi * 0.2)
+
+func _update_avatar(user_data):
+	var tier = user_data.get(\"tier\", \"Wood\")
+	var color = TIER_COLORS.get(tier, TIER_COLORS[\"Wood\"])
+	avatar_ring.color = color
+	
+	var username = user_data.get(\"username\", \"?\")
+	avatar_initial.text = username[0].to_upper()
+	
+	tier_label.text = tier.to_upper()
+	tier_label.add_theme_color_override(\"font_color\", color)
+
+func _on_tier_updated(data):
+	if has_node(\"/root/AuthService\"):
+		var auth = get_node(\"/root/AuthService\")
+		if auth.current_user:
+			_update_avatar(auth.current_user)
 
 func _ensure_logged_in() -> bool:
 	if has_node(\"/root/AuthService\"):
@@ -112,6 +281,7 @@ func _on_login_success(user_data):
 	login_btn.hide()
 	update_username(user_data[\"username\"])
 	update_balance(user_data[\"balance\"])
+	_update_avatar(user_data)
 
 func _on_logout():
 	profile_section.hide()
@@ -126,11 +296,13 @@ func update_username(new_name: String):
 
 func _on_connection_status_changed(online):
 	if online:
-		status_dot.color = Color.GREEN
+		status_dot.color = Color(0.2, 0.9, 0.3, 1)
 		status_text.text = \"Online\"
+		status_text.add_theme_color_override(\"font_color\", Color(0.2, 0.9, 0.3, 0.9))
 	else:
-		status_dot.color = Color.RED
+		status_dot.color = Color(0.9, 0.2, 0.2, 1)
 		status_text.text = \"Offline\"
+		status_text.add_theme_color_override(\"font_color\", Color(0.9, 0.2, 0.2, 0.9))
 
 func _on_profile_gui_input(event):
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
@@ -139,6 +311,7 @@ func _on_profile_gui_input(event):
 		add_child(profile_page)
 "
 
+; ==================== ROOT ====================
 [node name="Main" type="Control"]
 layout_mode = 3
 anchors_preset = 15
@@ -147,6 +320,16 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = SubResource("GDScript_main")
+
+; ==================== BACKGROUND LAYERS ====================
+[node name="BG" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.03, 0.02, 0.06, 1)
 
 [node name="Banner" type="TextureRect" parent="."]
 layout_mode = 1
@@ -158,6 +341,7 @@ grow_vertical = 2
 texture = ExtResource("1")
 expand_mode = 1
 stretch_mode = 6
+modulate = Color(0.2, 0.18, 0.25, 0.4)
 
 [node name="Overlay" type="ColorRect" parent="Banner"]
 layout_mode = 1
@@ -166,8 +350,28 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0, 0, 0, 0.4)
+color = Color(0.03, 0.01, 0.06, 0.55)
 
+; ==================== PARTICLES ====================
+[node name="Particles" type="CPUParticles2D" parent="."]
+position = Vector2(360, 640)
+emitting = true
+amount = 25
+lifetime = 5.0
+speed_scale = 0.4
+randomness = 1.0
+direction = Vector2(0, -1)
+spread = 180.0
+gravity = Vector2(0, -15)
+initial_velocity_min = 15.0
+initial_velocity_max = 40.0
+scale_amount_min = 1.0
+scale_amount_max = 3.0
+color = Color(0.85, 0.65, 0.1, 0.25)
+emission_shape = 3
+emission_rect_extents = Vector2(360, 640)
+
+; ==================== CONTENT ROOT ====================
 [node name="ContentRoot" type="VBoxContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
@@ -177,8 +381,9 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/separation = 0
 
+; ==================== HEADER ====================
 [node name="Header" type="Panel" parent="ContentRoot"]
-custom_minimum_size = Vector2(0, 80)
+custom_minimum_size = Vector2(0, 72)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_header")
 
@@ -189,150 +394,312 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/margin_left = 20
-theme_override_constants/margin_right = 20
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_right = 16
 
 [node name="HBoxContainer" type="HBoxContainer" parent="ContentRoot/Header/MarginContainer"]
 layout_mode = 2
-theme_override_constants/separation = 15
+theme_override_constants/separation = 10
 
 [node name="StatusSection" type="HBoxContainer" parent="ContentRoot/Header/MarginContainer/HBoxContainer"]
 layout_mode = 2
+theme_override_constants/separation = 6
 
 [node name="Dot" type="ColorRect" parent="ContentRoot/Header/MarginContainer/HBoxContainer/StatusSection"]
-custom_minimum_size = Vector2(10, 10)
+custom_minimum_size = Vector2(8, 8)
 layout_mode = 2
 size_flags_vertical = 4
-color = Color(1, 0, 0, 1)
+color = Color(0.9, 0.2, 0.2, 1)
 
 [node name="Text" type="Label" parent="ContentRoot/Header/MarginContainer/HBoxContainer/StatusSection"]
 layout_mode = 2
 text = "Offline"
-theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.9, 0.2, 0.2, 0.9)
+theme_override_font_sizes/font_size = 11
 
 [node name="Spacer" type="Control" parent="ContentRoot/Header/MarginContainer/HBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
 
 [node name="LoginBtn" type="Button" parent="ContentRoot/Header/MarginContainer/HBoxContainer"]
+custom_minimum_size = Vector2(150, 36)
 layout_mode = 2
-text = "Login / Sign Up"
+theme_override_colors/font_color = Color(0.06, 0.03, 0.03, 1)
+theme_override_font_sizes/font_size = 13
+theme_override_styles/normal = SubResource("StyleBoxFlat_login_btn")
+text = "LOGIN / SIGN UP"
 
 [node name="BalanceSection" type="PanelContainer" parent="ContentRoot/Header/MarginContainer/HBoxContainer"]
 visible = false
 layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_balance_box")
 
 [node name="MarginContainer" type="MarginContainer" parent="ContentRoot/Header/MarginContainer/HBoxContainer/BalanceSection"]
 layout_mode = 2
-theme_override_constants/margin_left = 15
-theme_override_constants/margin_right = 15
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_bottom = 4
 
 [node name="Label" type="Label" parent="ContentRoot/Header/MarginContainer/HBoxContainer/BalanceSection/MarginContainer"]
 layout_mode = 2
 text = "C 1,000"
-theme_override_colors/font_color = Color(1, 0.843, 0, 1)
-theme_override_font_sizes/font_size = 18
+theme_override_colors/font_color = Color(0.95, 0.78, 0.15, 1)
+theme_override_font_sizes/font_size = 14
 
 [node name="ProfileSection" type="HBoxContainer" parent="ContentRoot/Header/MarginContainer/HBoxContainer"]
 visible = false
 layout_mode = 2
 mouse_default_cursor_shape = 2
+theme_override_constants/separation = 8
+
+[node name="AvatarContainer" type="Control" parent="ContentRoot/Header/MarginContainer/HBoxContainer/ProfileSection"]
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="AvatarRing" type="ColorRect" parent="ContentRoot/Header/MarginContainer/HBoxContainer/ProfileSection/AvatarContainer"]
+layout_mode = 0
+offset_right = 44.0
+offset_bottom = 44.0
+color = Color(0.55, 0.41, 0.08, 1)
+
+[node name="AvatarInner" type="ColorRect" parent="ContentRoot/Header/MarginContainer/HBoxContainer/ProfileSection/AvatarContainer/AvatarRing"]
+layout_mode = 0
+offset_left = 3.0
+offset_top = 3.0
+offset_right = 41.0
+offset_bottom = 41.0
+color = Color(0.12, 0.08, 0.18, 1)
+
+[node name="InitialLabel" type="Label" parent="ContentRoot/Header/MarginContainer/HBoxContainer/ProfileSection/AvatarContainer/AvatarRing"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+text = "?"
+theme_override_colors/font_color = Color(0.9, 0.82, 0.6, 1)
+theme_override_font_sizes/font_size = 18
+horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="UserInfo" type="VBoxContainer" parent="ContentRoot/Header/MarginContainer/HBoxContainer/ProfileSection"]
 layout_mode = 2
 alignment = 1
+theme_override_constants/separation = 1
 
 [node name="Username" type="Label" parent="ContentRoot/Header/MarginContainer/HBoxContainer/ProfileSection/UserInfo"]
 layout_mode = 2
 text = "Guest"
-theme_override_font_sizes/font_size = 16
+theme_override_colors/font_color = Color(0.88, 0.82, 0.65, 1)
+theme_override_font_sizes/font_size = 14
 
+[node name="TierLabel" type="Label" parent="ContentRoot/Header/MarginContainer/HBoxContainer/ProfileSection/UserInfo"]
+layout_mode = 2
+text = "WOOD"
+theme_override_colors/font_color = Color(0.55, 0.41, 0.08, 1)
+theme_override_font_sizes/font_size = 10
+
+; ==================== SCROLL AREA ====================
 [node name="ScrollArea" type="ScrollContainer" parent="ContentRoot"]
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="VBoxContainer" type="VBoxContainer" parent="ContentRoot/ScrollArea"]
+[node name="Content" type="VBoxContainer" parent="ContentRoot/ScrollArea"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 30
+theme_override_constants/separation = 0
 
+; ---- HERO SECTION ----
+[node name="HeroSection" type="VBoxContainer" parent="ContentRoot/ScrollArea/Content"]
+layout_mode = 2
+theme_override_constants/separation = 12
 
-
-[node name="GameSection" type="VBoxContainer" parent="ContentRoot/ScrollArea/VBoxContainer"]
+[node name="TopPad" type="Control" parent="ContentRoot/ScrollArea/Content/HeroSection"]
+custom_minimum_size = Vector2(0, 50)
 layout_mode = 2
 
-[node name="KashinoTitle" type="Label" parent="ContentRoot/ScrollArea/VBoxContainer/GameSection"]
+[node name="KashinoTitle" type="Label" parent="ContentRoot/ScrollArea/Content/HeroSection"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 48
-text = "Kashino"
+text = "KASHINO"
+theme_override_colors/font_color = Color(0.92, 0.72, 0.12, 1)
+theme_override_font_sizes/font_size = 56
+horizontal_alignment = 1
+pivot_offset = Vector2(360, 32)
+
+[node name="Tagline" type="Label" parent="ContentRoot/ScrollArea/Content/HeroSection"]
+layout_mode = 2
+text = "SOCIAL CASINO"
+theme_override_colors/font_color = Color(0.6, 0.55, 0.5, 0.6)
+theme_override_font_sizes/font_size = 14
 horizontal_alignment = 1
 
-[node name="Padding" type="MarginContainer" parent="ContentRoot/ScrollArea/VBoxContainer/GameSection"]
+[node name="DividerContainer" type="CenterContainer" parent="ContentRoot/ScrollArea/Content/HeroSection"]
+layout_mode = 2
+
+[node name="Divider" type="Panel" parent="ContentRoot/ScrollArea/Content/HeroSection/DividerContainer"]
+custom_minimum_size = Vector2(120, 1)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_divider")
+
+[node name="BotPad" type="Control" parent="ContentRoot/ScrollArea/Content/HeroSection"]
+custom_minimum_size = Vector2(0, 15)
+layout_mode = 2
+
+; ---- GAMES SECTION ----
+[node name="GamesSection" type="VBoxContainer" parent="ContentRoot/ScrollArea/Content"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="SectionHeader" type="MarginContainer" parent="ContentRoot/ScrollArea/Content/GamesSection"]
+layout_mode = 2
+theme_override_constants/margin_left = 24
+
+[node name="SectionTitle" type="Label" parent="ContentRoot/ScrollArea/Content/GamesSection/SectionHeader"]
+layout_mode = 2
+text = "FEATURED GAMES"
+theme_override_colors/font_color = Color(0.7, 0.6, 0.45, 0.8)
+theme_override_font_sizes/font_size = 13
+
+[node name="Padding" type="MarginContainer" parent="ContentRoot/ScrollArea/Content/GamesSection"]
 layout_mode = 2
 theme_override_constants/margin_left = 20
 theme_override_constants/margin_right = 20
 
-[node name="GridContainer" type="GridContainer" parent="ContentRoot/ScrollArea/VBoxContainer/GameSection/Padding"]
+[node name="CardContainer" type="VBoxContainer" parent="ContentRoot/ScrollArea/Content/GamesSection/Padding"]
 layout_mode = 2
-theme_override_constants/h_separation = 20
-theme_override_constants/v_separation = 20
-columns = 2
+theme_override_constants/separation = 16
 
-[node name="SlotButton" type="Button" parent="ContentRoot/ScrollArea/VBoxContainer/GameSection/Padding/GridContainer"]
-custom_minimum_size = Vector2(0, 250)
+; ---- SLOT CARD ----
+[node name="SlotPanel" type="PanelContainer" parent="ContentRoot/ScrollArea/Content/GamesSection/Padding/CardContainer"]
+custom_minimum_size = Vector2(0, 180)
 layout_mode = 2
 size_flags_horizontal = 3
-flat = true
+theme_override_styles/panel = SubResource("StyleBoxFlat_slot_card")
+pivot_offset = Vector2(340, 90)
 
-[node name="SlotCard" type="VBoxContainer" parent="ContentRoot/ScrollArea/VBoxContainer/GameSection/Padding/GridContainer/SlotButton"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-
-[node name="Icon" type="TextureRect" parent="ContentRoot/ScrollArea/VBoxContainer/GameSection/Padding/GridContainer/SlotButton/SlotCard"]
-custom_minimum_size = Vector2(160, 160)
+[node name="Margin" type="MarginContainer" parent="ContentRoot/ScrollArea/Content/GamesSection/Padding/CardContainer/SlotPanel"]
 layout_mode = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_bottom = 20
+
+[node name="HBox" type="HBoxContainer" parent="ContentRoot/ScrollArea/Content/GamesSection/Padding/CardContainer/SlotPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="Icon" type="TextureRect" parent="ContentRoot/ScrollArea/Content/GamesSection/Padding/CardContainer/SlotPanel/Margin/HBox"]
+custom_minimum_size = Vector2(100, 100)
+layout_mode = 2
+size_flags_vertical = 4
 texture = ExtResource("2")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="Name" type="Label" parent="ContentRoot/ScrollArea/VBoxContainer/GameSection/Padding/GridContainer/SlotButton/SlotCard"]
-layout_mode = 2
-text = "CLASSIC SLOTS"
-horizontal_alignment = 1
-
-[node name="PokerButton" type="Button" parent="ContentRoot/ScrollArea/VBoxContainer/GameSection/Padding/GridContainer"]
-custom_minimum_size = Vector2(0, 250)
+[node name="Info" type="VBoxContainer" parent="ContentRoot/ScrollArea/Content/GamesSection/Padding/CardContainer/SlotPanel/Margin/HBox"]
 layout_mode = 2
 size_flags_horizontal = 3
-flat = true
+theme_override_constants/separation = 6
+alignment = 1
 
-[node name="PokerCard" type="VBoxContainer" parent="ContentRoot/ScrollArea/VBoxContainer/GameSection/Padding/GridContainer/PokerButton"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-
-[node name="Icon" type="TextureRect" parent="ContentRoot/ScrollArea/VBoxContainer/GameSection/Padding/GridContainer/PokerButton/PokerCard"]
-custom_minimum_size = Vector2(160, 160)
+[node name="Title" type="Label" parent="ContentRoot/ScrollArea/Content/GamesSection/Padding/CardContainer/SlotPanel/Margin/HBox/Info"]
 layout_mode = 2
+text = "CLASSIC SLOTS"
+theme_override_colors/font_color = Color(0.95, 0.88, 0.65, 1)
+theme_override_font_sizes/font_size = 22
+
+[node name="Desc" type="Label" parent="ContentRoot/ScrollArea/Content/GamesSection/Padding/CardContainer/SlotPanel/Margin/HBox/Info"]
+layout_mode = 2
+text = "Spin the reels and win big"
+theme_override_colors/font_color = Color(0.6, 0.55, 0.45, 0.7)
+theme_override_font_sizes/font_size = 12
+
+[node name="PlayBtn" type="Button" parent="ContentRoot/ScrollArea/Content/GamesSection/Padding/CardContainer/SlotPanel/Margin/HBox/Info"]
+custom_minimum_size = Vector2(120, 36)
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_colors/font_color = Color(0.06, 0.03, 0.01, 1)
+theme_override_font_sizes/font_size = 13
+theme_override_styles/normal = SubResource("StyleBoxFlat_play_btn")
+text = "PLAY NOW"
+
+[node name="SlotButton" type="Button" parent="ContentRoot/ScrollArea/Content/GamesSection/Padding/CardContainer/SlotPanel"]
+layout_mode = 2
+flat = true
+mouse_default_cursor_shape = 2
+
+; ---- POKER CARD ----
+[node name="PokerPanel" type="PanelContainer" parent="ContentRoot/ScrollArea/Content/GamesSection/Padding/CardContainer"]
+custom_minimum_size = Vector2(0, 180)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_poker_card")
+pivot_offset = Vector2(340, 90)
+
+[node name="Margin" type="MarginContainer" parent="ContentRoot/ScrollArea/Content/GamesSection/Padding/CardContainer/PokerPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_bottom = 20
+
+[node name="HBox" type="HBoxContainer" parent="ContentRoot/ScrollArea/Content/GamesSection/Padding/CardContainer/PokerPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="Icon" type="TextureRect" parent="ContentRoot/ScrollArea/Content/GamesSection/Padding/CardContainer/PokerPanel/Margin/HBox"]
+custom_minimum_size = Vector2(100, 100)
+layout_mode = 2
+size_flags_vertical = 4
 texture = ExtResource("3")
 expand_mode = 1
 stretch_mode = 5
 
-[node name="Name" type="Label" parent="ContentRoot/ScrollArea/VBoxContainer/GameSection/Padding/GridContainer/PokerButton/PokerCard"]
+[node name="Info" type="VBoxContainer" parent="ContentRoot/ScrollArea/Content/GamesSection/Padding/CardContainer/PokerPanel/Margin/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+alignment = 1
+
+[node name="Title" type="Label" parent="ContentRoot/ScrollArea/Content/GamesSection/Padding/CardContainer/PokerPanel/Margin/HBox/Info"]
 layout_mode = 2
 text = "TEXAS HOLD'EM"
-horizontal_alignment = 1
+theme_override_colors/font_color = Color(0.7, 0.82, 0.98, 1)
+theme_override_font_sizes/font_size = 22
 
-[node name="BottomNav" type="Panel" parent="ContentRoot"]
-custom_minimum_size = Vector2(0, 80)
+[node name="Desc" type="Label" parent="ContentRoot/ScrollArea/Content/GamesSection/Padding/CardContainer/PokerPanel/Margin/HBox/Info"]
 layout_mode = 2
+text = "Play poker with friends"
+theme_override_colors/font_color = Color(0.45, 0.52, 0.62, 0.7)
+theme_override_font_sizes/font_size = 12
+
+[node name="PlayBtn" type="Button" parent="ContentRoot/ScrollArea/Content/GamesSection/Padding/CardContainer/PokerPanel/Margin/HBox/Info"]
+custom_minimum_size = Vector2(120, 36)
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_colors/font_color = Color(0.95, 0.95, 1.0, 1)
+theme_override_font_sizes/font_size = 13
+theme_override_styles/normal = SubResource("StyleBoxFlat_play_btn_blue")
+text = "PLAY NOW"
+
+[node name="PokerButton" type="Button" parent="ContentRoot/ScrollArea/Content/GamesSection/Padding/CardContainer/PokerPanel"]
+layout_mode = 2
+flat = true
+mouse_default_cursor_shape = 2
+
+; ---- BOTTOM SPACER ----
+[node name="BottomSpacer" type="Control" parent="ContentRoot/ScrollArea/Content"]
+custom_minimum_size = Vector2(0, 24)
+layout_mode = 2
+
+; ==================== BOTTOM NAVIGATION ====================
+[node name="BottomNav" type="Panel" parent="ContentRoot"]
+custom_minimum_size = Vector2(0, 64)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_bottom_nav")
 
 [node name="HBoxContainer" type="HBoxContainer" parent="ContentRoot/BottomNav"]
 layout_mode = 1
@@ -341,29 +708,46 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+theme_override_constants/separation = 4
 alignment = 1
 
 [node name="HomeBtn" type="Button" parent="ContentRoot/BottomNav/HBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.92, 0.72, 0.12, 1)
+theme_override_font_sizes/font_size = 13
+theme_override_styles/normal = SubResource("StyleBoxFlat_nav_active")
+flat = true
 text = "Home"
 
 [node name="ChatBtn" type="Button" parent="ContentRoot/BottomNav/HBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.5, 0.48, 0.52, 1)
+theme_override_font_sizes/font_size = 13
+flat = true
 text = "Chat"
 
 [node name="WalletBtn" type="Button" parent="ContentRoot/BottomNav/HBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.5, 0.48, 0.52, 1)
+theme_override_font_sizes/font_size = 13
+flat = true
 text = "Wallet"
 
 [node name="MenuBtn" type="Button" parent="ContentRoot/BottomNav/HBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.5, 0.48, 0.52, 1)
+theme_override_font_sizes/font_size = 13
+flat = true
 text = "Menu"
 
+; ==================== SIGNALS ====================
 [connection signal="gui_input" from="ContentRoot/Header/MarginContainer/HBoxContainer/ProfileSection" to="." method="_on_profile_gui_input"]
+[connection signal="pressed" from="ContentRoot/ScrollArea/Content/GamesSection/Padding/CardContainer/SlotPanel/Margin/HBox/Info/PlayBtn" to="." method="_on_slot_pressed"]
+[connection signal="pressed" from="ContentRoot/ScrollArea/Content/GamesSection/Padding/CardContainer/PokerPanel/Margin/HBox/Info/PlayBtn" to="." method="_on_poker_pressed"]

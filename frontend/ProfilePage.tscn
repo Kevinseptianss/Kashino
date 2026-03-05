@@ -1,21 +1,46 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bg"]
-bg_color = Color(0.0392157, 0.0392157, 0.0588235, 1)
+bg_color = Color(0.03, 0.02, 0.06, 1)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_card"]
-bg_color = Color(0.0784314, 0.0784314, 0.117647, 1)
-corner_radius_top_left = 20
-corner_radius_top_right = 20
-corner_radius_bottom_right = 20
-corner_radius_bottom_left = 20
+bg_color = Color(0.08, 0.06, 0.12, 0.95)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.75, 0.55, 0.1, 0.3)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_header"]
+bg_color = Color(0.06, 0.04, 0.1, 0.92)
+border_width_bottom = 1
+border_color = Color(0.75, 0.55, 0.1, 0.35)
 
 [sub_resource type="GDScript" id="GDScript_profile"]
 script/source = "extends Control
 
 @onready var history_list = $VBox/Scroll/HistoryList
-@onready var username_label = $VBox/Header/Username
-@onready var balance_label = $VBox/BalanceCard/VBox/Balance
+@onready var username_label = $VBox/ScrollWrap/Scroll/Inner/ProfileCard/Margin/VBox/Username
+@onready var tier_label = $VBox/ScrollWrap/Scroll/Inner/ProfileCard/Margin/VBox/TierRow/TierLabel
+@onready var level_label = $VBox/ScrollWrap/Scroll/Inner/ProfileCard/Margin/VBox/TierRow/LevelLabel
+@onready var exp_bar = $VBox/ScrollWrap/Scroll/Inner/ProfileCard/Margin/VBox/ExpBar
+@onready var exp_label = $VBox/ScrollWrap/Scroll/Inner/ProfileCard/Margin/VBox/ExpLabel
+@onready var balance_label = $VBox/ScrollWrap/Scroll/Inner/BalanceCard/Margin/VBox/Balance
+@onready var avatar_ring = $VBox/ScrollWrap/Scroll/Inner/ProfileCard/Margin/VBox/AvatarContainer/AvatarRing
+@onready var avatar_initial = $VBox/ScrollWrap/Scroll/Inner/ProfileCard/Margin/VBox/AvatarContainer/AvatarRing/InitialLabel
+
+const TIER_COLORS = {
+	\"Wood\": Color(0.55, 0.41, 0.08, 1),
+	\"Bronze\": Color(0.8, 0.5, 0.2, 1),
+	\"Silver\": Color(0.75, 0.75, 0.75, 1),
+	\"Gold\": Color(1, 0.84, 0, 1),
+	\"Fire\": Color(1, 0.27, 0, 1),
+	\"Diamond\": Color(0, 1, 1, 1)
+}
 
 func _ready():
 	if has_node(\"/root/AuthService\"):
@@ -24,8 +49,32 @@ func _ready():
 			username_label.text = \"Not Logged In\"
 			return
 		
-		username_label.text = auth.current_user.get(\"username\", \"Guest\")
-		$VBox/BalanceCard/VBox/Label.text = auth.current_user.get(\"tier\", \"VIP Silver\")
+		var user = auth.current_user
+		username_label.text = user.get(\"username\", \"Guest\")
+		
+		# Avatar
+		var initial = user.get(\"username\", \"?\")[0].to_upper()
+		avatar_initial.text = initial
+		
+		# Tier
+		var tier = user.get(\"tier\", \"Wood\")
+		var color = TIER_COLORS.get(tier, TIER_COLORS[\"Wood\"])
+		avatar_ring.color = color
+		tier_label.text = tier.to_upper()
+		tier_label.add_theme_color_override(\"font_color\", color)
+		
+		# Level
+		var level = user.get(\"level\", 1)
+		level_label.text = \"LV. \" + str(level)
+		
+		# EXP bar
+		var exp_val = user.get(\"exp\", 0)
+		var exp_for_current = (level - 1) * 200
+		var exp_for_next = level * 200
+		var progress = float(exp_val - exp_for_current) / float(exp_for_next - exp_for_current)
+		exp_bar.value = clamp(progress * 100, 0, 100)
+		exp_label.text = str(exp_val) + \" / \" + str(exp_for_next) + \" EXP\"
+		
 		_update_balance_display(auth.current_balance)
 		
 		if not auth.balance_updated.is_connected(_update_balance_display):
@@ -33,7 +82,6 @@ func _ready():
 		if not auth.history_received.is_connected(_display_history):
 			auth.history_received.connect(_display_history)
 		
-		# Request history
 		auth.get_history()
 
 func _update_balance_display(amount):
@@ -49,7 +97,6 @@ func _update_balance_display(amount):
 	balance_label.text = \"C \" + formatted
 
 func _display_history(history):
-	# Clear old items
 	for child in history_list.get_children():
 		child.queue_free()
 	
@@ -57,50 +104,50 @@ func _display_history(history):
 		var empty = Label.new()
 		empty.text = \"No history available\"
 		empty.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		empty.modulate = Color(1, 1, 1, 0.4)
+		empty.add_theme_color_override(\"font_color\", Color(0.5, 0.45, 0.4, 0.5))
 		history_list.add_child(empty)
 		return
 	
-	# Show latest first
 	history.reverse()
 	
 	for item in history:
 		var card = PanelContainer.new()
-		var card_style = get_theme_stylebox(\"panel\", \"BalanceCard\").duplicate()
-		card_style.bg_color = Color(1, 1, 1, 0.03)
+		var card_style = StyleBoxFlat.new()
+		card_style.bg_color = Color(0.1, 0.08, 0.14, 0.6)
+		card_style.corner_radius_top_left = 10
+		card_style.corner_radius_top_right = 10
+		card_style.corner_radius_bottom_right = 10
+		card_style.corner_radius_bottom_left = 10
 		card_style.content_margin_left = 15
 		card_style.content_margin_right = 15
-		card_style.content_margin_top = 10
-		card_style.content_margin_bottom = 10
+		card_style.content_margin_top = 12
+		card_style.content_margin_bottom = 12
 		card.add_theme_stylebox_override(\"panel\", card_style)
-		card.mouse_filter = Control.MOUSE_FILTER_PASS
 		history_list.add_child(card)
 		
 		var hbox = HBoxContainer.new()
-		hbox.mouse_filter = Control.MOUSE_FILTER_PASS
 		card.add_child(hbox)
 		
 		var v_info = VBoxContainer.new()
 		v_info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		v_info.mouse_filter = Control.MOUSE_FILTER_PASS
 		hbox.add_child(v_info)
 		
 		var source_label = Label.new()
 		var source = item.get(\"source\", \"Unknown\")
 		source_label.text = source.to_upper().replace(\"_\", \" \")
-		source_label.add_theme_font_size_override(\"font_size\", 16)
+		source_label.add_theme_font_size_override(\"font_size\", 14)
+		source_label.add_theme_color_override(\"font_color\", Color(0.85, 0.78, 0.6, 0.9))
 		v_info.add_child(source_label)
 		
 		var date_label = Label.new()
 		var ts = item.get(\"timestamp\", 0)
 		if ts is Dictionary and ts.has(\"$date\"): 
 			ts = ts[\"$date\"]
-		
 		var formatted_date = _format_timestamp(ts)
 		if formatted_date != \"\":
 			date_label.text = formatted_date
-			date_label.add_theme_font_size_override(\"font_size\", 12)
-			date_label.modulate = Color(0.6, 0.6, 0.6)
+			date_label.add_theme_font_size_override(\"font_size\", 11)
+			date_label.add_theme_color_override(\"font_color\", Color(0.5, 0.45, 0.4, 0.6))
 			v_info.add_child(date_label)
 		
 		var amount_label = Label.new()
@@ -110,9 +157,9 @@ func _display_history(history):
 		amount_label.text = amount_str
 		amount_label.add_theme_font_size_override(\"font_size\", 18)
 		if amount_val < 0:
-			amount_label.add_theme_color_override(\"font_color\", Color(1, 0.4, 0.4))
+			amount_label.add_theme_color_override(\"font_color\", Color(1, 0.35, 0.35, 0.9))
 		else:
-			amount_label.add_theme_color_override(\"font_color\", Color(0.4, 1, 0.4))
+			amount_label.add_theme_color_override(\"font_color\", Color(0.35, 1, 0.35, 0.9))
 		hbox.add_child(amount_label)
 
 func _format_timestamp(ts):
@@ -126,7 +173,6 @@ func _format_timestamp(ts):
 		if ts_str.is_valid_float() or ts_str.is_valid_int():
 			unix_time = float(ts_str) / 1000.0
 		else:
-			# Try parsing ISO8601 or similar
 			unix_time = Time.get_unix_time_from_datetime_string(ts_str)
 	elif ts is float or ts is int:
 		unix_time = float(ts) / 1000.0
@@ -163,66 +209,197 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 30.0
-offset_top = 50.0
-offset_right = -30.0
-offset_bottom = -30.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/separation = 30
+theme_override_constants/separation = 0
 
-[node name="Header" type="HBoxContainer" parent="VBox"]
+; ---- HEADER ----
+[node name="Header" type="Panel" parent="VBox"]
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_header")
+
+[node name="Margin" type="MarginContainer" parent="VBox/Header"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_right = 20
+
+[node name="HBox" type="HBoxContainer" parent="VBox/Header/Margin"]
 layout_mode = 2
 
-[node name="BackBtn" type="Button" parent="VBox/Header"]
-custom_minimum_size = Vector2(80, 40)
+[node name="BackBtn" type="Button" parent="VBox/Header/Margin/HBox"]
+custom_minimum_size = Vector2(70, 36)
 layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.65, 0.1, 0.9)
+theme_override_font_sizes/font_size = 14
+flat = true
 text = "Back"
 
-[node name="Username" type="Label" parent="VBox/Header"]
+[node name="Title" type="Label" parent="VBox/Header/Margin/HBox"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Username"
-horizontal_alignment = 2
-theme_override_font_sizes/font_size = 24
+text = "WALLET"
+theme_override_colors/font_color = Color(0.88, 0.82, 0.65, 1)
+theme_override_font_sizes/font_size = 20
+horizontal_alignment = 1
 
-[node name="BalanceCard" type="PanelContainer" parent="VBox"]
-custom_minimum_size = Vector2(0, 120)
+[node name="Spacer" type="Control" parent="VBox/Header/Margin/HBox"]
+custom_minimum_size = Vector2(70, 0)
+layout_mode = 2
+
+; ---- SCROLLABLE CONTENT ----
+[node name="ScrollWrap" type="MarginContainer" parent="VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_bottom = 20
+
+[node name="Scroll" type="ScrollContainer" parent="VBox/ScrollWrap"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="Inner" type="VBoxContainer" parent="VBox/ScrollWrap/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 20
+
+; ---- PROFILE CARD ----
+[node name="ProfileCard" type="PanelContainer" parent="VBox/ScrollWrap/Scroll/Inner"]
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_card")
 
-[node name="VBox" type="VBoxContainer" parent="VBox/BalanceCard"]
+[node name="Margin" type="MarginContainer" parent="VBox/ScrollWrap/Scroll/Inner/ProfileCard"]
 layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_bottom = 24
+
+[node name="VBox" type="VBoxContainer" parent="VBox/ScrollWrap/Scroll/Inner/ProfileCard/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 10
 alignment = 1
 
-[node name="Label" type="Label" parent="VBox/BalanceCard/VBox"]
+[node name="AvatarContainer" type="CenterContainer" parent="VBox/ScrollWrap/Scroll/Inner/ProfileCard/Margin/VBox"]
+layout_mode = 2
+
+[node name="AvatarRing" type="ColorRect" parent="VBox/ScrollWrap/Scroll/Inner/ProfileCard/Margin/VBox/AvatarContainer"]
+custom_minimum_size = Vector2(70, 70)
+layout_mode = 2
+color = Color(0.55, 0.41, 0.08, 1)
+
+[node name="AvatarInner" type="ColorRect" parent="VBox/ScrollWrap/Scroll/Inner/ProfileCard/Margin/VBox/AvatarContainer/AvatarRing"]
+layout_mode = 0
+offset_left = 4.0
+offset_top = 4.0
+offset_right = 66.0
+offset_bottom = 66.0
+color = Color(0.12, 0.08, 0.18, 1)
+
+[node name="InitialLabel" type="Label" parent="VBox/ScrollWrap/Scroll/Inner/ProfileCard/Margin/VBox/AvatarContainer/AvatarRing"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+text = "?"
+theme_override_colors/font_color = Color(0.9, 0.82, 0.6, 1)
+theme_override_font_sizes/font_size = 28
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Username" type="Label" parent="VBox/ScrollWrap/Scroll/Inner/ProfileCard/Margin/VBox"]
+layout_mode = 2
+text = "Username"
+theme_override_colors/font_color = Color(0.88, 0.82, 0.65, 1)
+theme_override_font_sizes/font_size = 22
+horizontal_alignment = 1
+
+[node name="TierRow" type="HBoxContainer" parent="VBox/ScrollWrap/Scroll/Inner/ProfileCard/Margin/VBox"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 10
+
+[node name="TierLabel" type="Label" parent="VBox/ScrollWrap/Scroll/Inner/ProfileCard/Margin/VBox/TierRow"]
+layout_mode = 2
+text = "WOOD"
+theme_override_colors/font_color = Color(0.55, 0.41, 0.08, 1)
+theme_override_font_sizes/font_size = 13
+
+[node name="LevelLabel" type="Label" parent="VBox/ScrollWrap/Scroll/Inner/ProfileCard/Margin/VBox/TierRow"]
+layout_mode = 2
+text = "LV. 1"
+theme_override_colors/font_color = Color(0.6, 0.55, 0.5, 0.7)
+theme_override_font_sizes/font_size = 13
+
+[node name="ExpBar" type="ProgressBar" parent="VBox/ScrollWrap/Scroll/Inner/ProfileCard/Margin/VBox"]
+custom_minimum_size = Vector2(0, 8)
+layout_mode = 2
+max_value = 100.0
+value = 0.0
+show_percentage = false
+
+[node name="ExpLabel" type="Label" parent="VBox/ScrollWrap/Scroll/Inner/ProfileCard/Margin/VBox"]
+layout_mode = 2
+text = "0 / 200 EXP"
+theme_override_colors/font_color = Color(0.5, 0.45, 0.4, 0.6)
+theme_override_font_sizes/font_size = 11
+horizontal_alignment = 1
+
+; ---- BALANCE CARD ----
+[node name="BalanceCard" type="PanelContainer" parent="VBox/ScrollWrap/Scroll/Inner"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_card")
+
+[node name="Margin" type="MarginContainer" parent="VBox/ScrollWrap/Scroll/Inner/BalanceCard"]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_bottom = 20
+
+[node name="VBox" type="VBoxContainer" parent="VBox/ScrollWrap/Scroll/Inner/BalanceCard/Margin"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 6
+
+[node name="Label" type="Label" parent="VBox/ScrollWrap/Scroll/Inner/BalanceCard/Margin/VBox"]
 layout_mode = 2
 text = "CURRENT BALANCE"
+theme_override_colors/font_color = Color(0.6, 0.55, 0.5, 0.6)
+theme_override_font_sizes/font_size = 12
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 14
 
-[node name="Balance" type="Label" parent="VBox/BalanceCard/VBox"]
+[node name="Balance" type="Label" parent="VBox/ScrollWrap/Scroll/Inner/BalanceCard/Margin/VBox"]
 layout_mode = 2
-text = "$1,000"
-horizontal_alignment = 1
+text = "C 1,000"
+theme_override_colors/font_color = Color(0.95, 0.78, 0.15, 1)
 theme_override_font_sizes/font_size = 32
-theme_override_colors/font_color = Color(1, 0.843137, 0, 1)
+horizontal_alignment = 1
 
-[node name="HistoryLabel" type="Label" parent="VBox"]
+; ---- HISTORY SECTION ----
+[node name="HistoryTitle" type="Label" parent="VBox/ScrollWrap/Scroll/Inner"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.74, 0.58, 1, 1)
-theme_override_font_sizes/font_size = 20
 text = "TRANSACTION HISTORY"
+theme_override_colors/font_color = Color(0.7, 0.6, 0.45, 0.8)
+theme_override_font_sizes/font_size = 13
 
 [node name="Scroll" type="ScrollContainer" parent="VBox"]
 layout_mode = 2
 size_flags_vertical = 3
-horizontal_scroll_mode = 0
-vertical_scroll_mode = 1
 
 [node name="HistoryList" type="VBoxContainer" parent="VBox/Scroll"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 12
+theme_override_constants/separation = 8
 
-[connection signal="pressed" from="VBox/Header/BackBtn" to="." method="_on_back_pressed"]
+[connection signal="pressed" from="VBox/Header/Margin/HBox/BackBtn" to="." method="_on_back_pressed"]

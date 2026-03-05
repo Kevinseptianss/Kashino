@@ -230,13 +230,19 @@ func (h *UserHandler) SignIn(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	// Recalculate level and tier from exp
+	level := models.CalculateLevel(user.Exp)
+	tier := models.GetTierFromLevel(level)
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"token":    tokenString,
-		"id":       user.ID.Hex(),
-		"username": user.Username,
-		"balance":  user.Balance,
-		"tier":     user.Tier,
-		"role":     user.Role,
+		"token":           tokenString,
+		"id":              user.ID.Hex(),
+		"username":        user.Username,
+		"balance":         user.Balance,
+		"tier":            tier,
+		"exp":             user.Exp,
+		"level":           level,
+		"profile_picture": user.ProfilePicture,
+		"role":            user.Role,
 	})
 }
 

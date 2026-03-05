@@ -27,7 +27,7 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 		user.Balance = 1000 // Default starting balance
 	}
 	if user.Tier == "" {
-		user.Tier = "VIP Silver"
+		user.Tier = "Wood"
 	}
 	if user.Role == "" {
 		user.Role = "user"
@@ -180,6 +180,47 @@ func (r *UserRepository) GetDailyStats(ctx context.Context) (map[string]interfac
 		"total_users":        totalUsers,
 		"total_transactions": totalSlots + totalPoker,
 	}, nil
+}
+
+// AddExp adds experience points to a user and updates their level and tier.
+// Returns the updated exp, level, and tier.
+func (r *UserRepository) AddExp(ctx context.Context, userID primitive.ObjectID, expGain int64) (int64, int, string, error) {
+	var user models.User
+	err := r.collection.FindOne(ctx, bson.M{"_id": userID}).Decode(&user)
+	if err != nil {
+		return 0, 0, "", err
+	}
+
+	newExp := user.Exp + expGain
+	newLevel := models.CalculateLevel(newExp)
+	newTier := models.GetTierFromLevel(newLevel)
+
+	_, err = r.collection.UpdateOne(
+		ctx,
+		bson.M{"_id": userID},
+		bson.M{
+			"$set": bson.M{
+				"exp":   newExp,
+				"level": newLevel,
+				"tier":  newTier,
+			},
+		},
+	)
+	if err != nil {
+		return 0, 0, "", err
+	}
+
+	return newExp, newLevel, newTier, nil
+}
+
+// UpdateProfilePicture updates a user's profile picture.
+func (r *UserRepository) UpdateProfilePicture(ctx context.Context, userID primitive.ObjectID, picture string) error {
+	_, err := r.collection.UpdateOne(
+		ctx,
+		bson.M{"_id": userID},
+		bson.M{"$set": bson.M{"profile_picture": picture}},
+	)
+	return err
 }
 
 func (r *UserRepository) UpdateOTP(ctx context.Context, email string, otp string, expiry time.Time) error {

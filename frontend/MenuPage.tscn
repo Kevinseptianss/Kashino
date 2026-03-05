@@ -1,14 +1,36 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=6 format=3]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bg"]
-bg_color = Color(0.0392157, 0.0392157, 0.0588235, 1)
+bg_color = Color(0.03, 0.02, 0.06, 1)
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_card"]
-bg_color = Color(0.0784314, 0.0784314, 0.117647, 1)
-corner_radius_top_left = 10
-corner_radius_top_right = 10
-corner_radius_bottom_right = 10
-corner_radius_bottom_left = 10
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_header"]
+bg_color = Color(0.06, 0.04, 0.1, 0.92)
+border_width_bottom = 1
+border_color = Color(0.75, 0.55, 0.1, 0.35)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_menu_btn"]
+bg_color = Color(0.08, 0.06, 0.12, 0.95)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.75, 0.55, 0.1, 0.2)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_logout_btn"]
+bg_color = Color(0.25, 0.05, 0.05, 0.9)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.8, 0.2, 0.2, 0.4)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
 
 [sub_resource type="GDScript" id="GDScript_menu"]
 script/source = "extends Control
@@ -20,7 +42,6 @@ func _on_logout_pressed():
 	if has_node(\"/root/AuthService\"):
 		var auth = get_node(\"/root/AuthService\")
 		auth.clear_auth()
-		# Notify main to update UI
 		var main = get_tree().root.get_node(\"Main\")
 		if main:
 			main._on_logout()
@@ -34,6 +55,38 @@ func _on_change_password_pressed():
 
 func _on_change_email_pressed():
 	print(\"Change Email pressed - Backend support pending\")
+
+func _on_change_avatar_pressed():
+	if not has_node(\"/root/AuthService\"): return
+	var auth = get_node(\"/root/AuthService\")
+	if not auth.current_user: return
+	
+	# Open file dialog for profile picture selection
+	var dialog = FileDialog.new()
+	dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	dialog.access = FileDialog.ACCESS_FILESYSTEM
+	dialog.filters = PackedStringArray([\"*.png, *.jpg, *.jpeg ; Image Files\"])
+	dialog.size = Vector2i(600, 400)
+	dialog.title = \"Select Profile Picture\"
+	add_child(dialog)
+	dialog.file_selected.connect(_on_avatar_file_selected)
+	dialog.popup_centered()
+
+func _on_avatar_file_selected(path):
+	var image = Image.load_from_file(path)
+	if image == null:
+		print(\"Failed to load image: \", path)
+		return
+	
+	# Resize to 128x128
+	image.resize(128, 128)
+	var png_data = image.save_png_to_buffer()
+	var base64 = Marshalls.raw_to_base64(png_data)
+	
+	if has_node(\"/root/AuthService\"):
+		var auth = get_node(\"/root/AuthService\")
+		auth.set_profile_picture(base64)
+		print(\"Profile picture uploaded\")
 "
 
 [node name="MenuPage" type="Control"]
@@ -59,63 +112,121 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 30.0
-offset_top = 50.0
-offset_right = -30.0
-offset_bottom = -30.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/separation = 20
+theme_override_constants/separation = 0
 
-[node name="Header" type="HBoxContainer" parent="VBox"]
+; ---- HEADER ----
+[node name="Header" type="Panel" parent="VBox"]
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_header")
+
+[node name="Margin" type="MarginContainer" parent="VBox/Header"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_right = 20
+
+[node name="HBox" type="HBoxContainer" parent="VBox/Header/Margin"]
 layout_mode = 2
 
-[node name="BackBtn" type="Button" parent="VBox/Header"]
-custom_minimum_size = Vector2(80, 40)
+[node name="BackBtn" type="Button" parent="VBox/Header/Margin/HBox"]
+custom_minimum_size = Vector2(70, 36)
 layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.65, 0.1, 0.9)
+theme_override_font_sizes/font_size = 14
+flat = true
 text = "Back"
 
-[node name="Title" type="Label" parent="VBox/Header"]
+[node name="Title" type="Label" parent="VBox/Header/Margin/HBox"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Settings"
-horizontal_alignment = 2
-theme_override_font_sizes/font_size = 24
+text = "SETTINGS"
+theme_override_colors/font_color = Color(0.88, 0.82, 0.65, 1)
+theme_override_font_sizes/font_size = 20
+horizontal_alignment = 1
 
-[node name="Spacer" type="Control" parent="VBox"]
-custom_minimum_size = Vector2(0, 20)
+[node name="Spacer" type="Control" parent="VBox/Header/Margin/HBox"]
+custom_minimum_size = Vector2(70, 0)
 layout_mode = 2
 
-[node name="BtnGroup" type="VBoxContainer" parent="VBox"]
+; ---- CONTENT ----
+[node name="ContentPadding" type="MarginContainer" parent="VBox"]
 layout_mode = 2
-theme_override_constants/separation = 15
+size_flags_vertical = 3
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_top = 30
 
-[node name="ChangeUsernameBtn" type="Button" parent="VBox/BtnGroup"]
-custom_minimum_size = Vector2(0, 60)
+[node name="BtnGroup" type="VBoxContainer" parent="VBox/ContentPadding"]
 layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="SectionLabel" type="Label" parent="VBox/ContentPadding/BtnGroup"]
+layout_mode = 2
+text = "ACCOUNT"
+theme_override_colors/font_color = Color(0.7, 0.6, 0.45, 0.8)
+theme_override_font_sizes/font_size = 12
+
+[node name="ChangeAvatarBtn" type="Button" parent="VBox/ContentPadding/BtnGroup"]
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.78, 0.6, 0.9)
+theme_override_font_sizes/font_size = 15
+theme_override_styles/normal = SubResource("StyleBoxFlat_menu_btn")
+text = "Change Profile Picture"
+
+[node name="ChangeUsernameBtn" type="Button" parent="VBox/ContentPadding/BtnGroup"]
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.78, 0.6, 0.9)
+theme_override_font_sizes/font_size = 15
+theme_override_styles/normal = SubResource("StyleBoxFlat_menu_btn")
 text = "Change Username"
 
-[node name="ChangePasswordBtn" type="Button" parent="VBox/BtnGroup"]
-custom_minimum_size = Vector2(0, 60)
+[node name="ChangePasswordBtn" type="Button" parent="VBox/ContentPadding/BtnGroup"]
+custom_minimum_size = Vector2(0, 56)
 layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.78, 0.6, 0.9)
+theme_override_font_sizes/font_size = 15
+theme_override_styles/normal = SubResource("StyleBoxFlat_menu_btn")
 text = "Change Password"
 
-[node name="ChangeEmailBtn" type="Button" parent="VBox/BtnGroup"]
-custom_minimum_size = Vector2(0, 60)
+[node name="ChangeEmailBtn" type="Button" parent="VBox/ContentPadding/BtnGroup"]
+custom_minimum_size = Vector2(0, 56)
 layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.78, 0.6, 0.9)
+theme_override_font_sizes/font_size = 15
+theme_override_styles/normal = SubResource("StyleBoxFlat_menu_btn")
 text = "Change Email"
 
-[node name="Spacer2" type="Control" parent="VBox"]
+[node name="Spacer" type="Control" parent="VBox"]
+layout_mode = 2
 size_flags_vertical = 3
 
-[node name="LogoutBtn" type="Button" parent="VBox"]
-custom_minimum_size = Vector2(0, 60)
+; ---- LOGOUT ----
+[node name="LogoutPadding" type="MarginContainer" parent="VBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.3, 0.3, 1)
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 40
+
+[node name="LogoutBtn" type="Button" parent="VBox/LogoutPadding"]
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.35, 0.35, 1)
+theme_override_font_sizes/font_size = 15
+theme_override_styles/normal = SubResource("StyleBoxFlat_logout_btn")
 text = "SIGN OUT"
 
-[connection signal="pressed" from="VBox/Header/BackBtn" to="." method="_on_back_pressed"]
-[connection signal="pressed" from="VBox/BtnGroup/ChangeUsernameBtn" to="." method="_on_change_username_pressed"]
-[connection signal="pressed" from="VBox/BtnGroup/ChangePasswordBtn" to="." method="_on_change_password_pressed"]
-[connection signal="pressed" from="VBox/BtnGroup/ChangeEmailBtn" to="." method="_on_change_email_pressed"]
-[connection signal="pressed" from="VBox/LogoutBtn" to="." method="_on_logout_pressed"]
+[connection signal="pressed" from="VBox/Header/Margin/HBox/BackBtn" to="." method="_on_back_pressed"]
+[connection signal="pressed" from="VBox/ContentPadding/BtnGroup/ChangeAvatarBtn" to="." method="_on_change_avatar_pressed"]
+[connection signal="pressed" from="VBox/ContentPadding/BtnGroup/ChangeUsernameBtn" to="." method="_on_change_username_pressed"]
+[connection signal="pressed" from="VBox/ContentPadding/BtnGroup/ChangePasswordBtn" to="." method="_on_change_password_pressed"]
+[connection signal="pressed" from="VBox/ContentPadding/BtnGroup/ChangeEmailBtn" to="." method="_on_change_email_pressed"]
+[connection signal="pressed" from="VBox/LogoutPadding/LogoutBtn" to="." method="_on_logout_pressed"]

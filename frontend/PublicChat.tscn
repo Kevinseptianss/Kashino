@@ -1,14 +1,31 @@
-[gd_scene load_steps=4 format=3 uid="uid://public_chat_scene"]
+[gd_scene load_steps=6 format=3 uid="uid://public_chat_scene"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bg"]
-bg_color = Color(0.06, 0.06, 0.09, 1)
+bg_color = Color(0.03, 0.02, 0.06, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_header"]
+bg_color = Color(0.06, 0.04, 0.1, 0.92)
+border_width_bottom = 1
+border_color = Color(0.75, 0.55, 0.1, 0.35)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_input_bg"]
-bg_color = Color(0.12, 0.12, 0.18, 1)
-corner_radius_top_left = 20
-corner_radius_top_right = 20
-corner_radius_bottom_right = 20
-corner_radius_bottom_left = 20
+bg_color = Color(0.1, 0.08, 0.14, 0.9)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.75, 0.55, 0.1, 0.2)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_send_btn"]
+bg_color = Color(0.75, 0.55, 0.08, 1.0)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
 
 [sub_resource type="GDScript" id="GDScript_public_chat"]
 script/source = "extends Control
@@ -61,9 +78,9 @@ func _on_history(data):
 		_render_message(m.get(\"username\", \"Unknown\"), m.get(\"message\", \"\"))
 
 func _render_message(username, message):
-	var color = \"#aaaaee\"
+	var color = \"#8888cc\"
 	if auth and auth.current_user and username == auth.current_user[\"username\"]:
-		color = \"#ffe066\"
+		color = \"#d4a820\"
 	chat_log.append_text(\"[color=\" + color + \"][b]\" + username + \":[/b][/color] \" + message + \"\\n\")
 "
 
@@ -83,71 +100,105 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 theme_override_styles/panel = SubResource("StyleBoxFlat_bg")
 
-[node name="Padding" type="MarginContainer" parent="."]
+[node name="VBox" type="VBoxContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/margin_left = 20
-theme_override_constants/margin_top = 10
-theme_override_constants/margin_right = 20
-theme_override_constants/margin_bottom = 15
+theme_override_constants/separation = 0
 
-[node name="VBox" type="VBoxContainer" parent="Padding"]
-layout_mode = 2
-theme_override_constants/separation = 10
-
-[node name="Header" type="HBoxContainer" parent="Padding/VBox"]
+; ---- HEADER ----
+[node name="Header" type="Panel" parent="VBox"]
 custom_minimum_size = Vector2(0, 60)
 layout_mode = 2
-theme_override_constants/separation = 10
+theme_override_styles/panel = SubResource("StyleBoxFlat_header")
 
-[node name="BackBtn" type="Button" parent="Padding/VBox/Header"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(60, 0)
+[node name="Margin" type="MarginContainer" parent="VBox/Header"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_right = 20
+
+[node name="HBox" type="HBoxContainer" parent="VBox/Header/Margin"]
 layout_mode = 2
-text = "< Back"
 
-[node name="Title" type="Label" parent="Padding/VBox/Header"]
+[node name="BackBtn" type="Button" parent="VBox/Header/Margin/HBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(70, 36)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.65, 0.1, 0.9)
+theme_override_font_sizes/font_size = 14
+flat = true
+text = "Back"
+
+[node name="Title" type="Label" parent="VBox/Header/Margin/HBox"]
 layout_mode = 2
 size_flags_horizontal = 3
-size_flags_vertical = 4
-theme_override_font_sizes/font_size = 22
-text = "Public Chat"
+text = "PUBLIC CHAT"
+theme_override_colors/font_color = Color(0.88, 0.82, 0.65, 1)
+theme_override_font_sizes/font_size = 20
 horizontal_alignment = 1
 
-[node name="ChatLog" type="RichTextLabel" parent="Padding/VBox"]
+[node name="Spacer" type="Control" parent="VBox/Header/Margin/HBox"]
+custom_minimum_size = Vector2(70, 0)
+layout_mode = 2
+
+; ---- CHAT AREA ----
+[node name="ChatPadding" type="MarginContainer" parent="VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="ChatLog" type="RichTextLabel" parent="VBox/ChatPadding"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
 bbcode_enabled = true
 scroll_following = true
 
-[node name="LoginNotice" type="Label" parent="Padding/VBox"]
+[node name="LoginNotice" type="Label" parent="VBox"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
-theme_override_font_sizes/font_size = 16
+theme_override_colors/font_color = Color(0.6, 0.55, 0.5, 0.6)
+theme_override_font_sizes/font_size = 14
 text = "Login to participate in the chat."
 horizontal_alignment = 1
 
-[node name="InputRow" type="HBoxContainer" parent="Padding/VBox"]
+; ---- INPUT ROW ----
+[node name="InputPadding" type="MarginContainer" parent="VBox"]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 16
+
+[node name="InputRow" type="HBoxContainer" parent="VBox/InputPadding"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 55)
+custom_minimum_size = Vector2(0, 50)
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="ChatInput" type="LineEdit" parent="Padding/VBox/InputRow"]
+[node name="ChatInput" type="LineEdit" parent="VBox/InputPadding/InputRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-placeholder_text = "Say something..."
+placeholder_text = "Type a message..."
+theme_override_colors/font_color = Color(0.85, 0.78, 0.6, 0.9)
+theme_override_font_sizes/font_size = 14
 
-[node name="SendBtn" type="Button" parent="Padding/VBox/InputRow"]
+[node name="SendBtn" type="Button" parent="VBox/InputPadding/InputRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(55, 0)
+custom_minimum_size = Vector2(70, 0)
 layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "➤"
+theme_override_colors/font_color = Color(0.06, 0.03, 0.01, 1)
+theme_override_font_sizes/font_size = 14
+theme_override_styles/normal = SubResource("StyleBoxFlat_send_btn")
+text = "Send"

@@ -1,0 +1,6 @@
+*.apk
+*.aab
+.godot/
+frontend/android/build/build/
+
+frontend/android/build/

@@ -16,6 +16,8 @@ signal chat_message_received(chat_data)
 signal chat_history_received(history_data)
 signal public_chat_message_received(chat_data)
 signal public_chat_history_received(history_data)
+signal tier_updated(tier_data)
+signal profile_picture_updated(picture_data)
 
 var base_url = "https://api.kashino.my.id"
 var current_user = null
@@ -142,13 +144,20 @@ func signup(username, email, password, otp):
 		signup_failed.emit("Could not make signup request")
 
 func _on_login_request_completed(_result, response_code, _headers, body):
-	var response = JSON.parse_string(body.get_string_from_utf8())
-	if response_code == 200:
+	var body_string = body.get_string_from_utf8()
+	var response = null
+	if body_string != "":
+		response = JSON.parse_string(body_string)
+		
+	if response_code == 200 and response != null:
 		current_user = {
 			"id": str(response["id"]),
 			"username": response["username"],
 			"balance": response["balance"],
-			"tier": response.get("tier", "VIP Silver")
+			"tier": response.get("tier", "Wood"),
+			"exp": response.get("exp", 0),
+			"level": response.get("level", 1),
+			"profile_picture": response.get("profile_picture", "")
 		}
 		current_balance = current_user["balance"]
 		login_success.emit(current_user)
@@ -157,16 +166,27 @@ func _on_login_request_completed(_result, response_code, _headers, body):
 		_connect_to_ws()
 	else:
 		var error = "Login failed"
-		if response and response.has("error"):
+		if response_code == 0:
+			error = "Connection failed. Please check your internet."
+		elif response and typeof(response) == TYPE_DICTIONARY and response.has("error"):
 			error = response["error"]
 		login_failed.emit(error)
 
 func _on_signup_request_completed(_result, response_code, _headers, body):
-	var response = JSON.parse_string(body.get_string_from_utf8())
-	if response_code == 201:
+	var body_string = body.get_string_from_utf8()
+	var response = null
+	if body_string != "":
+		response = JSON.parse_string(body_string)
+		
+	if response_code == 201 and response != null:
 		signup_success.emit(response)
 	else:
-		signup_failed.emit("Signup failed")
+		var error = "Signup failed"
+		if response_code == 0:
+			error = "Connection failed. Please check your internet."
+		elif response and typeof(response) == TYPE_DICTIONARY and response.has("error"):
+			error = response["error"]
+		signup_failed.emit(error)
 
 func fetch_balance():
 	_send_ws_message("get_balance", {})
@@ -235,6 +255,19 @@ func _handle_ws_message(json_str):
 		"public_chat_history":
 			if status == "success":
 				public_chat_history_received.emit(data)
+		"exp_update":
+			if status == "success":
+				if current_user:
+					current_user["exp"] = data.get("exp", current_user.get("exp", 0))
+					current_user["level"] = data.get("level", current_user.get("level", 1))
+					current_user["tier"] = data.get("tier", current_user.get("tier", "Wood"))
+				tier_updated.emit(data)
+		"set_profile_picture":
+			if status == "success":
+				var pic = data.get("profile_picture", "")
+				if current_user:
+					current_user["profile_picture"] = pic
+				profile_picture_updated.emit(data)
 
 func send_chat(room_id, message):
 	_send_ws_message("chat_message", {
@@ -249,6 +282,9 @@ func send_public_chat(message):
 
 func request_public_chat_history():
 	_send_ws_message("public_chat_history", {})
+
+func set_profile_picture(picture_data: String):
+	_send_ws_message("set_profile_picture", {"picture": picture_data})
 
 func _send_ws_message(action, data):
 	if socket.get_ready_state() != WebSocketPeer.STATE_OPEN:
