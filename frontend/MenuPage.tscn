@@ -87,6 +87,18 @@ func _on_avatar_file_selected(path):
 		var auth = get_node(\"/root/AuthService\")
 		auth.set_profile_picture(base64)
 		print(\"Profile picture uploaded\")
+
+func _on_slots_pressed():
+	var main = get_tree().root.get_node(\"Main\")
+	if main:
+		main._on_slot_pressed()
+	queue_free()
+
+func _on_poker_pressed():
+	var main = get_tree().root.get_node(\"Main\")
+	if main:
+		main._on_poker_pressed()
+	queue_free()
 "
 
 [node name="MenuPage" type="Control"]
@@ -205,6 +217,32 @@ theme_override_font_sizes/font_size = 15
 theme_override_styles/normal = SubResource("StyleBoxFlat_menu_btn")
 text = "Change Email"
 
+[node name="GamesSpacer" type="Control" parent="VBox/ContentPadding/BtnGroup"]
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+
+[node name="GamesLabel" type="Label" parent="VBox/ContentPadding/BtnGroup"]
+layout_mode = 2
+text = "GAMES"
+theme_override_colors/font_color = Color(0.7, 0.6, 0.45, 0.8)
+theme_override_font_sizes/font_size = 12
+
+[node name="SlotsBtn" type="Button" parent="VBox/ContentPadding/BtnGroup"]
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.78, 0.6, 0.9)
+theme_override_font_sizes/font_size = 15
+theme_override_styles/normal = SubResource("StyleBoxFlat_menu_btn")
+text = "Classic Slots"
+
+[node name="PokerBtn" type="Button" parent="VBox/ContentPadding/BtnGroup"]
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.78, 0.6, 0.9)
+theme_override_font_sizes/font_size = 15
+theme_override_styles/normal = SubResource("StyleBoxFlat_menu_btn")
+text = "Texas Hold'em"
+
 [node name="Spacer" type="Control" parent="VBox"]
 layout_mode = 2
 size_flags_vertical = 3
@@ -229,4 +267,6 @@ text = "SIGN OUT"
 [connection signal="pressed" from="VBox/ContentPadding/BtnGroup/ChangeUsernameBtn" to="." method="_on_change_username_pressed"]
 [connection signal="pressed" from="VBox/ContentPadding/BtnGroup/ChangePasswordBtn" to="." method="_on_change_password_pressed"]
 [connection signal="pressed" from="VBox/ContentPadding/BtnGroup/ChangeEmailBtn" to="." method="_on_change_email_pressed"]
+[connection signal="pressed" from="VBox/ContentPadding/BtnGroup/SlotsBtn" to="." method="_on_slots_pressed"]
+[connection signal="pressed" from="VBox/ContentPadding/BtnGroup/PokerBtn" to="." method="_on_poker_pressed"]
 [connection signal="pressed" from="VBox/LogoutPadding/LogoutBtn" to="." method="_on_logout_pressed"]

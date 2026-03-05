@@ -1,0 +1,336 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Texture2D" uid="uid://m33imlntdvuh" path="res://assets/casino_banner.png" id="1"]
+[ext_resource type="Texture2D" uid="uid://dd11sxj11rqu1" path="res://assets/slot_machine_icon.png" id="2"]
+[ext_resource type="Texture2D" uid="uid://b0ys38ct38hj6" path="res://assets/poker_icon.png" id="3"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_header"]
+bg_color = Color(0.078, 0.078, 0.118, 1)
+border_width_bottom = 2
+border_color = Color(0.157, 0.157, 0.235, 1)
+
+[sub_resource type="GDScript" id="GDScript_main"]
+script/source = "extends Control
+
+@onready var profile_section = $ContentRoot/Header/MarginContainer/HBoxContainer/ProfileSection
+@onready var balance_section = $ContentRoot/Header/MarginContainer/HBoxContainer/BalanceSection
+@onready var login_btn = $ContentRoot/Header/MarginContainer/HBoxContainer/LoginBtn
+@onready var balance_label = $ContentRoot/Header/MarginContainer/HBoxContainer/BalanceSection/MarginContainer/Label
+@onready var username_label = $ContentRoot/Header/MarginContainer/HBoxContainer/ProfileSection/UserInfo/Username
+@onready var status_dot = $ContentRoot/Header/MarginContainer/HBoxContainer/StatusSection/Dot
+@onready var status_text = $ContentRoot/Header/MarginContainer/HBoxContainer/StatusSection/Text
+
+func _ready():
+	var auth = get_node_or_null("/root/AuthService")
+	var window_size = Vector2i(720, 1280)
+	
+	if auth and auth.is_side_by_side:
+		var screen_size = DisplayServer.screen_get_size()
+		# Scale down if too many instances
+		var scale_factor = 1.0
+		var total_width_needed = window_size.x * auth.instance_count
+		
+		if total_width_needed > screen_size.x:
+			scale_factor = float(screen_size.x) / float(total_width_needed)
+			window_size = Vector2i(int(window_size.x * scale_factor), int(window_size.y * scale_factor))
+		
+		DisplayServer.window_set_size(window_size)
+		
+		# Position side by side
+		var start_x = (screen_size.x - (window_size.x * auth.instance_count)) / 2
+		var pos_x = start_x + (window_size.x * auth.instance_index)
+		var pos_y = (screen_size.y - window_size.y) / 2
+		DisplayServer.window_set_position(Vector2i(pos_x, pos_y))
+	else:
+		DisplayServer.window_set_size(window_size)
+		var screen_size = DisplayServer.screen_get_size()
+		DisplayServer.window_set_position((screen_size - window_size) / 2)
+
+	_on_logout()
+	
+	if has_node(\"/root/AuthService\"):
+		var auth = get_node(\"/root/AuthService\")
+		auth.login_success.connect(_on_login_success)
+		auth.balance_updated.connect(update_balance)
+		auth.connection_status_changed.connect(_on_connection_status_changed)
+		_on_connection_status_changed(auth.ws_connected)
+		auth.auto_login()
+	
+	login_btn.pressed.connect(_on_login_btn_pressed)
+	
+	var slot_btn = get_node_or_null(\"ContentRoot/ScrollArea/VBoxContainer/GameSection/Padding/GridContainer/SlotButton\")
+	if slot_btn:
+		slot_btn.pressed.connect(_on_slot_pressed)
+	
+	var poker_btn = get_node_or_null(\"ContentRoot/ScrollArea/VBoxContainer/GameSection/Padding/GridContainer/PokerButton\")
+	if poker_btn:
+		poker_btn.pressed.connect(_on_poker_pressed)
+	
+	%WalletBtn.pressed.connect(_on_wallet_pressed)
+	%MenuBtn.pressed.connect(_on_wallet_pressed)
+
+func _on_wallet_pressed():
+	if has_node(\"/root/AuthService\"):
+		var auth = get_node(\"/root/AuthService\")
+		if not auth.current_user:
+			_on_login_btn_pressed() # Redirect to login if not logged in
+			return
+			
+	var profile_page = preload(\"res://ProfilePage.tscn\").instantiate()
+	add_child(profile_page)
+
+func _on_slot_pressed():
+	var slot_game = preload(\"res://SlotGame.tscn\").instantiate()
+	add_child(slot_game)
+
+func _on_poker_pressed():
+	var room_list = preload(\"res://PokerRoomList.tscn\").instantiate()
+	add_child(room_list)
+
+func _on_login_btn_pressed():
+	var login_screen = preload(\"res://LoginScreen.tscn\").instantiate()
+	add_child(login_screen)
+
+func _on_login_success(user_data):
+	profile_section.show()
+	balance_section.show()
+	login_btn.hide()
+	update_username(user_data[\"username\"])
+	update_balance(user_data[\"balance\"])
+
+func _on_logout():
+	profile_section.hide()
+	balance_section.hide()
+	login_btn.show()
+
+func update_balance(amount):
+	balance_label.text = \"C \" + str(int(amount))
+
+func update_username(new_name: String):
+	username_label.text = new_name
+
+func _on_connection_status_changed(online):
+	if online:
+		status_dot.color = Color.GREEN
+		status_text.text = \"Online\"
+	else:
+		status_dot.color = Color.RED
+		status_text.text = \"Offline\"
+
+func _on_profile_gui_input(event):
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		var profile_page = preload(\"res://ProfilePage.tscn\").instantiate()
+		add_child(profile_page)
+"
+
+[node name="Main" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = SubResource("GDScript_main")
+
+[node name="ContentRoot" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 0
+
+[node name="Header" type="Panel" parent="ContentRoot"]
+custom_minimum_size = Vector2(0, 80)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_header")
+
+[node name="MarginContainer" type="MarginContainer" parent="ContentRoot/Header"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_right = 20
+
+[node name="HBoxContainer" type="HBoxContainer" parent="ContentRoot/Header/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 15
+
+[node name="StatusSection" type="HBoxContainer" parent="ContentRoot/Header/MarginContainer/HBoxContainer"]
+layout_mode = 2
+
+[node name="Dot" type="ColorRect" parent="ContentRoot/Header/MarginContainer/HBoxContainer/StatusSection"]
+custom_minimum_size = Vector2(10, 10)
+layout_mode = 2
+size_flags_vertical = 4
+color = Color(1, 0, 0, 1)
+
+[node name="Text" type="Label" parent="ContentRoot/Header/MarginContainer/HBoxContainer/StatusSection"]
+layout_mode = 2
+text = "Offline"
+theme_override_font_sizes/font_size = 14
+
+[node name="Spacer" type="Control" parent="ContentRoot/Header/MarginContainer/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="LoginBtn" type="Button" parent="ContentRoot/Header/MarginContainer/HBoxContainer"]
+layout_mode = 2
+text = "Login / Sign Up"
+
+[node name="BalanceSection" type="PanelContainer" parent="ContentRoot/Header/MarginContainer/HBoxContainer"]
+visible = false
+layout_mode = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="ContentRoot/Header/MarginContainer/HBoxContainer/BalanceSection"]
+layout_mode = 2
+theme_override_constants/margin_left = 15
+theme_override_constants/margin_right = 15
+
+[node name="Label" type="Label" parent="ContentRoot/Header/MarginContainer/HBoxContainer/BalanceSection/MarginContainer"]
+layout_mode = 2
+text = "C 1,000"
+theme_override_colors/font_color = Color(1, 0.843, 0, 1)
+theme_override_font_sizes/font_size = 18
+
+[node name="ProfileSection" type="HBoxContainer" parent="ContentRoot/Header/MarginContainer/HBoxContainer"]
+visible = false
+layout_mode = 2
+mouse_default_cursor_shape = 2
+
+[node name="UserInfo" type="VBoxContainer" parent="ContentRoot/Header/MarginContainer/HBoxContainer/ProfileSection"]
+layout_mode = 2
+alignment = 1
+
+[node name="Username" type="Label" parent="ContentRoot/Header/MarginContainer/HBoxContainer/ProfileSection/UserInfo"]
+layout_mode = 2
+text = "Guest"
+theme_override_font_sizes/font_size = 16
+
+[node name="ScrollArea" type="ScrollContainer" parent="ContentRoot"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ContentRoot/ScrollArea"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 30
+
+[node name="Banner" type="TextureRect" parent="ContentRoot/ScrollArea/VBoxContainer"]
+custom_minimum_size = Vector2(0, 200)
+layout_mode = 2
+texture = ExtResource("1")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="GameSection" type="VBoxContainer" parent="ContentRoot/ScrollArea/VBoxContainer"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="ContentRoot/ScrollArea/VBoxContainer/GameSection"]
+layout_mode = 2
+text = "  POPULAR GAMES"
+theme_override_font_sizes/font_size = 20
+
+[node name="Padding" type="MarginContainer" parent="ContentRoot/ScrollArea/VBoxContainer/GameSection"]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_right = 20
+
+[node name="GridContainer" type="GridContainer" parent="ContentRoot/ScrollArea/VBoxContainer/GameSection/Padding"]
+layout_mode = 2
+theme_override_constants/h_separation = 20
+theme_override_constants/v_separation = 20
+columns = 2
+
+[node name="SlotButton" type="Button" parent="ContentRoot/ScrollArea/VBoxContainer/GameSection/Padding/GridContainer"]
+custom_minimum_size = Vector2(0, 250)
+layout_mode = 2
+size_flags_horizontal = 3
+flat = true
+
+[node name="SlotCard" type="VBoxContainer" parent="ContentRoot/ScrollArea/VBoxContainer/GameSection/Padding/GridContainer/SlotButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Icon" type="TextureRect" parent="ContentRoot/ScrollArea/VBoxContainer/GameSection/Padding/GridContainer/SlotButton/SlotCard"]
+custom_minimum_size = Vector2(160, 160)
+layout_mode = 2
+texture = ExtResource("2")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="Name" type="Label" parent="ContentRoot/ScrollArea/VBoxContainer/GameSection/Padding/GridContainer/SlotButton/SlotCard"]
+layout_mode = 2
+text = "CLASSIC SLOTS"
+horizontal_alignment = 1
+
+[node name="PokerButton" type="Button" parent="ContentRoot/ScrollArea/VBoxContainer/GameSection/Padding/GridContainer"]
+custom_minimum_size = Vector2(0, 250)
+layout_mode = 2
+size_flags_horizontal = 3
+flat = true
+
+[node name="PokerCard" type="VBoxContainer" parent="ContentRoot/ScrollArea/VBoxContainer/GameSection/Padding/GridContainer/PokerButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Icon" type="TextureRect" parent="ContentRoot/ScrollArea/VBoxContainer/GameSection/Padding/GridContainer/PokerButton/PokerCard"]
+custom_minimum_size = Vector2(160, 160)
+layout_mode = 2
+texture = ExtResource("3")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="Name" type="Label" parent="ContentRoot/ScrollArea/VBoxContainer/GameSection/Padding/GridContainer/PokerButton/PokerCard"]
+layout_mode = 2
+text = "TEXAS HOLD'EM"
+horizontal_alignment = 1
+
+[node name="BottomNav" type="Panel" parent="ContentRoot"]
+custom_minimum_size = Vector2(0, 80)
+layout_mode = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="ContentRoot/BottomNav"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+alignment = 1
+
+[node name="HomeBtn" type="Button" parent="ContentRoot/BottomNav/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Home"
+
+[node name="GamesBtn" type="Button" parent="ContentRoot/BottomNav/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Games"
+
+[node name="WalletBtn" type="Button" parent="ContentRoot/BottomNav/HBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Wallet"
+
+[node name="MenuBtn" type="Button" parent="ContentRoot/BottomNav/HBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Menu"
+
+[connection signal="gui_input" from="ContentRoot/Header/MarginContainer/HBoxContainer/ProfileSection" to="." method="_on_profile_gui_input"]

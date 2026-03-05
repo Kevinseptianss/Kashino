@@ -106,9 +106,6 @@ script/source = "extends Control
 @onready var particles = $Particles
 
 var time_elapsed: float = 0.0
-var slot_base_y: float = 0.0
-var poker_base_y: float = 0.0
-var cards_ready: bool = false
 
 const TIER_COLORS = {
 	\"Wood\": Color(0.55, 0.41, 0.08, 1),
@@ -156,14 +153,6 @@ func _ready():
 	
 	login_btn.pressed.connect(_on_login_btn_pressed)
 	
-	var slot_btn = get_node_or_null(\"ContentRoot/ScrollArea/Content/GamesSection/Padding/CardContainer/SlotPanel/SlotButton\")
-	if slot_btn:
-		slot_btn.pressed.connect(_on_slot_pressed)
-	
-	var poker_btn = get_node_or_null(\"ContentRoot/ScrollArea/Content/GamesSection/Padding/CardContainer/PokerPanel/PokerButton\")
-	if poker_btn:
-		poker_btn.pressed.connect(_on_poker_pressed)
-	
 	%WalletBtn.pressed.connect(_on_wallet_pressed)
 	%ChatBtn.pressed.connect(_on_chat_btn_pressed)
 	%MenuBtn.pressed.connect(_on_menu_pressed)
@@ -182,15 +171,9 @@ func _play_entrance_animations():
 	tween.tween_property(title_label, \"scale\", Vector2(1, 1), 0.8).from(Vector2(0.7, 0.7)).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
 	
 	tween.tween_property(slot_card, \"modulate\", Color(1, 1, 1, 1), 0.5).set_delay(0.4).set_ease(Tween.EASE_OUT)
-	tween.tween_property(slot_card, \"position:y\", slot_card.position.y, 0.5).from(slot_card.position.y + 40).set_delay(0.4).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
-	
 	tween.tween_property(poker_card, \"modulate\", Color(1, 1, 1, 1), 0.5).set_delay(0.55).set_ease(Tween.EASE_OUT)
-	tween.tween_property(poker_card, \"position:y\", poker_card.position.y, 0.5).from(poker_card.position.y + 40).set_delay(0.55).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
 	
 	await tween.finished
-	cards_ready = true
-	slot_base_y = slot_card.position.y
-	poker_base_y = poker_card.position.y
 
 func _process(delta):
 	time_elapsed += delta
@@ -203,10 +186,6 @@ func _process(delta):
 		var b = lerp(0.05, 0.18, shimmer)
 		title_label.add_theme_color_override(\"font_color\", Color(r, g, b, 1.0))
 	
-	# Subtle floating cards
-	if cards_ready:
-		slot_card.position.y = slot_base_y + sin(time_elapsed * 1.2) * 3.0
-		poker_card.position.y = poker_base_y + sin(time_elapsed * 1.2 + 0.8) * 3.0
 	
 	# Neon border pulse slot (gold)
 	var si = 0.35 + 0.2 * sin(time_elapsed * 2.5)
@@ -626,11 +605,6 @@ theme_override_font_sizes/font_size = 13
 theme_override_styles/normal = SubResource("StyleBoxFlat_play_btn")
 text = "PLAY NOW"
 
-[node name="SlotButton" type="Button" parent="ContentRoot/ScrollArea/Content/GamesSection/Padding/CardContainer/SlotPanel"]
-layout_mode = 2
-flat = true
-mouse_default_cursor_shape = 2
-
 ; ---- POKER CARD ----
 [node name="PokerPanel" type="PanelContainer" parent="ContentRoot/ScrollArea/Content/GamesSection/Padding/CardContainer"]
 custom_minimum_size = Vector2(0, 180)
@@ -684,11 +658,6 @@ theme_override_colors/font_color = Color(0.95, 0.95, 1.0, 1)
 theme_override_font_sizes/font_size = 13
 theme_override_styles/normal = SubResource("StyleBoxFlat_play_btn_blue")
 text = "PLAY NOW"
-
-[node name="PokerButton" type="Button" parent="ContentRoot/ScrollArea/Content/GamesSection/Padding/CardContainer/PokerPanel"]
-layout_mode = 2
-flat = true
-mouse_default_cursor_shape = 2
 
 ; ---- BOTTOM SPACER ----
 [node name="BottomSpacer" type="Control" parent="ContentRoot/ScrollArea/Content"]
